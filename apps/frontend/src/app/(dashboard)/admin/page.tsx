@@ -36,6 +36,58 @@ import {
 
 type TabType = 'OVERVIEW' | 'USERS' | 'SKILLS' | 'CURATION' | 'INSTITUTIONS';
 
+const SKILL_CATEGORY_LABELS: Record<string, string> = {
+  DIGITAL_IT: 'IT & Software',
+  TAMBANG_ALAT_BERAT: 'Tambang & Alat Berat',
+  WELDING_FABRIKASI: 'Pengelasan & Fabrikasi',
+  ELEKTRIKAL: 'Kelistrikan Industri',
+  K3_SAFETY: 'K3 & Keselamatan',
+  LOGISTIK_ADMIN: 'Logistik & Bisnis',
+  KONSTRUKSI_SIPIL: 'Konstruksi & Sipil',
+  KESEHATAN_MEDIS: 'Kesehatan & Medis',
+  OTOMOTIF_MESIN: 'Otomotif & Permesinan',
+  AGRO_MARITIM: 'Agrikultur & Kemaritiman',
+  PARIWISATA_HOSPITALITY: 'Pariwisata & Perhotelan',
+};
+
+function formatSkillCategory(cat: string): string {
+  if (!cat) return '-';
+  if (SKILL_CATEGORY_LABELS[cat]) return SKILL_CATEGORY_LABELS[cat];
+  return cat.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (l) => l.toUpperCase());
+}
+
+const INSTITUTION_CATEGORY_LABELS: Record<string, string> = {
+  KAMPUS: 'Perguruan Tinggi (Kampus)',
+  SMA: 'Sekolah Menengah Atas (SMA)',
+  SMK: 'Sekolah Menengah Kejuruan (SMK)',
+  BLK: 'Balai Latihan Kerja (BLK)',
+};
+
+function formatInstitutionCategory(cat: string): string {
+  if (!cat) return '-';
+  if (INSTITUTION_CATEGORY_LABELS[cat]) return INSTITUTION_CATEGORY_LABELS[cat];
+  return cat;
+}
+
+const ROLE_LABELS: Record<string, string> = {
+  TALENT: 'Talenta / Pencaker',
+  EMPLOYER: 'Perusahaan (Mitra Industri)',
+  DISNAKER_ADMIN: 'Administrator Disnaker',
+  EXECUTIVE: 'Pimpinan Eksekutif',
+  SUPERADMIN: 'Superadmin Master Data',
+};
+
+function formatRole(role: string): string {
+  if (!role) return '-';
+  return ROLE_LABELS[role] || role;
+}
+
+function formatMajorCategory(cat: string): string {
+  if (!cat) return 'Umum';
+  if (cat === 'USULAN_WARGA') return 'Usulan Warga';
+  return cat.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (l) => l.toUpperCase());
+}
+
 export default function ExecutiveCommandCenterPage() {
   const router = useRouter();
   const [profile, setProfile] = useState<any>(null);
@@ -548,18 +600,18 @@ export default function ExecutiveCommandCenterPage() {
                                 </button>
                               </td>
                               <td className="p-3">
-                                <span className={`text-xs uppercase tracking-wider ${
+                                <span className={`text-xs ${
                                   u.role === 'SUPERADMIN'
                                     ? 'font-bold text-neutral-900'
                                     : u.role === 'DISNAKER_ADMIN'
-                                    ? 'font-medium text-blue-700'
+                                    ? 'font-semibold text-blue-700'
                                     : u.role === 'EXECUTIVE'
-                                    ? 'font-medium text-purple-700'
+                                    ? 'font-semibold text-purple-700'
                                     : u.role === 'EMPLOYER'
-                                    ? 'font-medium text-amber-700'
-                                    : 'font-medium text-neutral-500'
+                                    ? 'font-semibold text-amber-700'
+                                    : 'font-normal text-neutral-600'
                                 }`}>
-                                  {u.role}
+                                  {formatRole(u.role)}
                                 </span>
                               </td>
                               <td className="p-3 text-right">
@@ -771,8 +823,8 @@ export default function ExecutiveCommandCenterPage() {
                           skillsList.map((item) => (
                             <tr key={item.id} className="hover:bg-neutral-50/60 transition-colors">
                               <td className="p-3 font-semibold text-neutral-900">{item.name}</td>
-                              <td className="p-3 text-xs font-medium text-neutral-600">
-                                {item.category}
+                              <td className="p-3 text-xs font-medium text-neutral-700">
+                                {formatSkillCategory(item.category)}
                               </td>
                               <td className="p-3 text-neutral-600">{item.description || '-'}</td>
                               <td className="p-3 text-right">
@@ -909,7 +961,7 @@ export default function ExecutiveCommandCenterPage() {
                         <div className="text-[11px] text-neutral-500 flex items-center gap-2">
                           <span>Rekomendasi AI: <strong className="text-neutral-800">{item.aiNormalizedName || item.suggestedName}</strong></span>
                           <span>&bull;</span>
-                          <span>Kategori: <strong className="text-neutral-800">{item.inferredCategory || 'UMUM'}</strong></span>
+                          <span>Kategori: <strong className="text-neutral-800">{formatMajorCategory(item.inferredCategory)}</strong></span>
                         </div>
                       </div>
 
@@ -1047,8 +1099,8 @@ export default function ExecutiveCommandCenterPage() {
                           instList.map((inst) => (
                             <tr key={inst.id} className="hover:bg-neutral-50/60 transition-colors">
                               <td className="p-3 font-semibold text-neutral-900">{inst.name}</td>
-                              <td className="p-3 text-xs font-medium uppercase text-neutral-600">
-                                {inst.category}
+                              <td className="p-3 text-xs font-medium text-neutral-700">
+                                {formatInstitutionCategory(inst.category)}
                               </td>
                               <td className="p-3 text-neutral-600">{inst.status || 'Aktif'}</td>
                               <td className="p-3 text-neutral-600">{inst.regencyName || inst.provinceName || 'Mimika, Papua Tengah'}</td>
@@ -1269,7 +1321,7 @@ export default function ExecutiveCommandCenterPage() {
                             <div className="text-[11px] text-neutral-500 flex items-center gap-2">
                               <span>Saran Baku AI: <strong className="text-neutral-800">{m.aiNormalizedName || m.suggestedName}</strong></span>
                               <span>&bull;</span>
-                              <span className="text-neutral-600">{m.inferredCategory || 'UMUM'}</span>
+                              <span className="text-neutral-600">{formatMajorCategory(m.inferredCategory)}</span>
                             </div>
                           </div>
 
