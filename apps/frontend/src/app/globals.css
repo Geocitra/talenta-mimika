@@ -1,0 +1,22 @@
+@import "tailwindcss";
+
+@layer base {
+  * {
+    border-radius: 0px !important; /* Memastikan kepatuhan zero-rounded di seluruh elemen */
+  }
+
+  /* Sleek Swiss-Style scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #f5f5f5;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #d4d4d4;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #171717;
+  }
+}

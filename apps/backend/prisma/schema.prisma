@@ -1,0 +1,466 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ==========================================
+// 1. ENUMERATION TYPES (Status & Peran)
+// ==========================================
+enum Role {
+  TALENT
+  EMPLOYER
+  DISNAKER_ADMIN
+  EXECUTIVE
+  SUPERADMIN
+}
+
+enum VerificationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum OtpPurpose {
+  REGISTRATION
+  LOGIN
+}
+
+enum VacancyStatus {
+  OPEN
+  CLOSED
+}
+
+// ==========================================
+// 2. CORE AUTHENTICATION ENTITY
+// ==========================================
+model User {
+  id           String    @id @default(uuid()) @db.Uuid
+  email        String    @unique
+  passwordHash String?   @map("password_hash") // Nullable untuk mendukung skenario Passwordless OTP Login
+  role         Role
+  isVerified   Boolean   @default(false) @map("is_verified")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  deletedAt    DateTime? @map("deleted_at") // Soft delete support
+
+  // Relasi Sub-tipe 1-to-1
+  talent           Talent?
+  employer         Employer?
+  trainingPrograms TrainingProgram[]
+
+  @@map("users")
+}
+
+// ==========================================
+// 3. TALENT PROFILE ENTITY (Pencari Kerja)
+// ==========================================
+model Talent {
+  id                      String   @id @db.Uuid
+  nik                     String   @unique @db.VarChar(16)
+  fullName                String   @map("full_name") @db.VarChar(255)
+  birthDate               DateTime @map("birth_date") @db.Date
+  phone                   String?  @db.VarChar(20)
+  bio                     String?  @db.Text
+  avatarUrl               String?  @map("avatar_url") @db.VarChar(500)
+  
+  // Data Portofolio & Rekam Jejak (JSONB fleksibel & siap untuk AI matching)
+  education               Json     @default("[]")
+  workExperience          Json     @default("[]") @map("work_experience")
+  skills                  Json     @default("[]")
+  certifications          Json     @default("[]")
+  socialDna               Json     @default("{}") @map("social_dna")
+
+  locationLat             Float?   @map("location_lat")
+  locationLng             Float?   @map("location_lng")
+
+  profileCompletenessScore Int      @default(20) @map("profile_completeness_score")
+  reputationScore         Int      @default(100) @map("reputation_score")
+  isActivelySeeking       Boolean  @default(true) @map("is_actively_seeking")
+  isAvailable             Boolean  @default(true) @map("is_available") // Siap dihubungi perusahaan
+  createdAt               DateTime @default(now()) @map("created_at")
+  updatedAt               DateTime @updatedAt @map("updated_at")
+
+  user        User                 @relation(fields: [id], references: [id], onDelete: Cascade)
+  approaches  TalentApproach[]
+  enrollments TrainingEnrollment[]
+
+  @@map("talents")
+}
+
+// ==========================================
+// 4. EMPLOYER PROFILE ENTITY (Perusahaan)
+// ==========================================
+model Employer {
+  id                 String             @id @db.Uuid
+  nib                String             @unique @db.VarChar(50) // NIB unik perusahaan
+  companyName        String             @map("company_name") @db.VarChar(255)
+  industrySector     String?            @map("industry_sector") @db.VarChar(150)
+  employeeCount      Int?               @default(0) @map("employee_count")
+  address            String?            @db.Text
+  locationLat        Float?             @map("location_lat") // Titik Koordinat Garis Lintang
+  locationLng        Float?             @map("location_lng") // Titik Koordinat Garis Bujur
+  companyBio         String?            @map("company_bio") @db.Text
+  verificationStatus VerificationStatus @default(PENDING) @map("verification_status")
+  verifiedBy         String?            @map("verified_by") @db.Uuid
+  verifiedAt         DateTime?          @map("verified_at")
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
+
+  // Relasi Identitas: ID adalah PK sekaligus FK ke User.id
+  user      User         @relation(fields: [id], references: [id], onDelete: Cascade)
+  vacancies JobVacancy[]
+
+  @@map("employers")
+}
+
+// ==========================================
+// 5. TRANSIENT SECURITY ENTITY (Email OTP)
+// ==========================================
+model EmailVerification {
+  id        String     @id @default(uuid()) @db.Uuid
+  email     String
+  otpHash   String     @map("otp_hash") @db.VarChar(255)
+  purpose   OtpPurpose
+  attempts  Int        @default(0)
+  expiresAt DateTime   @map("expires_at")
+  createdAt DateTime   @default(now()) @map("created_at")
+
+  // Indeks komposit untuk mempercepat pencarian verifikasi OTP
+  @@index([email, purpose])
+  @@map("email_verifications")
+}
+
+// ==========================================
+// 6. JOB VACANCY ENTITY (Kebutuhan Kerja Industri)
+// ==========================================
+model JobVacancy {
+  id                 String        @id @default(uuid()) @db.Uuid
+  employerId         String        @map("employer_id") @db.Uuid
+  title              String        @db.VarChar(255)
+  taskDescription    String        @map("task_description") @db.Text
+  projectDuration    String        @map("project_duration") @db.VarChar(100)
+  requiredSkills     Json          @default("[]") @map("required_skills")
+  minEducation       String        @map("min_education") @db.VarChar(50) // SMA, SMK, D3, S1, dll.
+  minExperienceYears Int           @default(0) @map("min_experience_years")
+  allowEquivalence   Boolean       @default(true) @map("allow_equivalence") // Fuzzy Matching Toggle
+  jobLocationLat     Float?        @map("job_location_lat")
+  jobLocationLng     Float?        @map("job_location_lng")
+  status             VacancyStatus @default(OPEN)
+  createdAt          DateTime      @default(now()) @map("created_at")
+  updatedAt          DateTime      @updatedAt @map("updated_at")
+
+  // Relasi ke Employer
+  employer   Employer         @relation(fields: [employerId], references: [id], onDelete: Cascade)
+  approaches TalentApproach[]
+
+  @@map("job_vacancies")
+}
+
+// ==========================================
+// 7. TALENT APPROACH ENTITY (Pendekatan Perusahaan ke Talenta)
+// ==========================================
+model TalentApproach {
+  id               String    @id @default(uuid()) @db.Uuid
+  vacancyId        String    @map("vacancy_id") @db.Uuid
+  talentId         String    @map("talent_id") @db.Uuid
+  aiMatchScore     Decimal   @map("ai_match_score") @db.Decimal(5, 2)
+  aiReasoning      Json      @default("{}") @map("ai_reasoning")
+  status           String    @default("APPROACHED") @db.VarChar(50) // APPROACHED, CONTACT_ACCESSED
+  talentNotifiedAt DateTime? @map("talent_notified_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  vacancy JobVacancy @relation(fields: [vacancyId], references: [id], onDelete: Cascade)
+  talent  Talent     @relation(fields: [talentId], references: [id], onDelete: Cascade)
+
+  @@unique([vacancyId, talentId])
+  @@map("talent_approaches")
+}
+
+// ==========================================
+// ENUMS TAMBAHAN: SUBSISTEM PELATIHAN & LMS
+// ==========================================
+enum TrainingDeliveryMode {
+  ONLINE
+  OFFLINE
+  HYBRID
+}
+
+enum TrainingCategory {
+  K3_PERTAMBANGAN
+  ALAT_BERAT
+  WELDING
+  MEKANIK
+  DIGITAL_IT
+  LOGISTIK
+  HOSPITALITY
+}
+
+enum TrainingProgramStatus {
+  DRAFT
+  PUBLISHED
+  CLOSED
+}
+
+enum TrainingEnrollmentStatus {
+  ENROLLED
+  ONGOING
+  COMPLETED
+  FAILED
+}
+
+enum QuizType {
+  CHECKPOINT
+  FINAL_EXAM
+}
+
+enum SessionContentType {
+  VIDEO
+  TEXT_ARTICLE
+  DOCUMENT_PDF
+}
+
+// ==========================================
+// 8. MODEL PROGRAM PELATIHAN (UNIFIED TABLE)
+// ==========================================
+model TrainingProgram {
+  id            String                @id @default(uuid()) @db.Uuid
+  createdBy     String                @map("created_by") @db.Uuid
+  title         String                @db.VarChar(255)
+  providerName  String                @default("Disnakertrans Mimika") @map("provider_name") @db.VarChar(255)
+  deliveryMode  TrainingDeliveryMode  @default(ONLINE) @map("delivery_mode")
+  category      TrainingCategory      @default(K3_PERTAMBANGAN)
+  description   String                @db.Text
+  syllabus      String?               @db.Text
+  quota         Int?                  @default(30) // Relevan untuk kapasitas kelas Offline
+  totalSessions Int                   @default(1) @map("total_sessions")
+  passingGrade  Int                   @default(80) @map("passing_grade") // Syarat lulus ujian akhir (0-100)
+  targetSkills  Json                  @default("[]") @map("target_skills") // Array skill diinjeksi saat lulus
+  status        TrainingProgramStatus @default(DRAFT)
+  startDate     DateTime?             @map("start_date") @db.Date
+  endDate       DateTime?             @map("end_date") @db.Date
+  createdAt     DateTime              @default(now()) @map("created_at")
+  updatedAt     DateTime              @updatedAt @map("updated_at")
+
+  // Relasi
+  author      User                 @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+  sessions    TrainingSession[]
+  quizzes     TrainingQuiz[]
+  enrollments TrainingEnrollment[]
+
+  @@map("training_programs")
+}
+
+// ==========================================
+// 9. MODEL SESI MATERI MODULAR
+// ==========================================
+model TrainingSession {
+  id                String             @id @default(uuid()) @db.Uuid
+  programId         String             @map("program_id") @db.Uuid
+  sessionOrder      Int                @map("session_order") // Urutan belajar: 1, 2, 3...
+  title             String             @db.VarChar(255)
+  contentType       SessionContentType @default(TEXT_ARTICLE) @map("content_type")
+  contentBody       String             @map("content_body") @db.Text // Teks Markdown atau URL Video
+  hasCheckpointQuiz Boolean            @default(false) @map("has_checkpoint_quiz")
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
+
+  // Relasi
+  program        TrainingProgram        @relation(fields: [programId], references: [id], onDelete: Cascade)
+  checkpointQuiz TrainingQuiz?
+  progresses     TalentLessonProgress[]
+
+  @@unique([programId, sessionOrder])
+  @@map("training_sessions")
+}
+
+// ==========================================
+// 10. MODEL KUIS ANTARA & UJIAN AKHIR
+// ==========================================
+model TrainingQuiz {
+  id               String   @id @default(uuid()) @db.Uuid
+  programId        String?  @map("program_id") @db.Uuid // Terisi jika FINAL_EXAM
+  sessionId        String?  @unique @map("session_id") @db.Uuid // Terisi jika CHECKPOINT
+  quizType         QuizType @default(CHECKPOINT) @map("quiz_type")
+  title            String   @db.VarChar(255)
+  passingScore     Int      @default(75) @map("passing_score") // 0 - 100
+  timeLimitMinutes Int?     @map("time_limit_minutes") // Batas waktu pengerjaan
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  // Relasi
+  program   TrainingProgram?    @relation(fields: [programId], references: [id], onDelete: Cascade)
+  session   TrainingSession?    @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  questions QuizQuestion[]
+  attempts  TalentQuizAttempt[]
+
+  @@map("training_quizzes")
+}
+
+// ==========================================
+// 11. MODEL BUTIR SOAL PILIHAN GANDA
+// ==========================================
+model QuizQuestion {
+  id            String       @id @default(uuid()) @db.Uuid
+  quizId        String       @map("quiz_id") @db.Uuid
+  questionOrder Int          @map("question_order") // Urutan soal: 1, 2, 3...
+  questionText  String       @map("question_text") @db.Text
+  options       Json // Array string pilihan: ["A. ...", "B. ...", "C. ...", "D. ..."]
+  correctAnswer String       @map("correct_answer") @db.VarChar(10) // Contoh: "A"
+  explanation   String?      @db.Text // Pembahasan materi
+  createdAt     DateTime     @default(now()) @map("created_at")
+
+  // Relasi
+  quiz TrainingQuiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
+
+  @@unique([quizId, questionOrder])
+  @@map("quiz_questions")
+}
+
+// ==========================================
+// 12. MODEL PENDAFTARAN KELAS & KELULUSAN
+// ==========================================
+model TrainingEnrollment {
+  id                     String                   @id @default(uuid()) @db.Uuid
+  talentId               String                   @map("talent_id") @db.Uuid
+  programId              String                   @map("program_id") @db.Uuid
+  status                 TrainingEnrollmentStatus @default(ENROLLED)
+  currentSessionUnlocked Int                      @default(1) @map("current_session_unlocked")
+  finalScore             Decimal?                 @map("final_score") @db.Decimal(5, 2)
+
+  // Sertifikasi Terintegrasi (Solusi Gap 5)
+  certificateNumber String? @unique @map("certificate_number") @db.VarChar(100)
+  certificateUrl    String? @map("certificate_url") @db.Text
+  qrCodeHash        String? @map("qr_code_hash") @db.VarChar(255)
+
+  completedAt DateTime? @map("completed_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  // Relasi
+  talent           Talent                 @relation(fields: [talentId], references: [id], onDelete: Cascade)
+  program          TrainingProgram        @relation(fields: [programId], references: [id], onDelete: Cascade)
+  lessonProgresses TalentLessonProgress[]
+  quizAttempts     TalentQuizAttempt[]
+
+  @@unique([talentId, programId])
+  @@map("training_enrollments")
+}
+
+// ==========================================
+// 13. MODEL PROGRESS BELAJAR PER SESI
+// ==========================================
+model TalentLessonProgress {
+  id           String             @id @default(uuid()) @db.Uuid
+  enrollmentId String             @map("enrollment_id") @db.Uuid
+  sessionId    String             @map("session_id") @db.Uuid
+  isCompleted  Boolean            @default(false) @map("is_completed")
+  completedAt  DateTime?          @map("completed_at")
+  createdAt    DateTime           @default(now()) @map("created_at")
+
+  // Relasi
+  enrollment TrainingEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  session    TrainingSession    @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([enrollmentId, sessionId])
+  @@map("talent_lesson_progress")
+}
+
+// ==========================================
+// 14. MODEL REKAM JEJAK EVALUASI KUIS
+// ==========================================
+model TalentQuizAttempt {
+  id               String             @id @default(uuid()) @db.Uuid
+  enrollmentId     String             @map("enrollment_id") @db.Uuid
+  quizId           String             @map("quiz_id") @db.Uuid
+  score            Int // 0 - 100
+  isPassed         Boolean            @map("is_passed")
+  submittedAnswers Json               @map("submitted_answers") // Rekam jejak jawaban peserta
+  attemptedAt      DateTime           @default(now()) @map("attempted_at")
+
+  // Relasi
+  enrollment TrainingEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  quiz       TrainingQuiz       @relation(fields: [quizId], references: [id], onDelete: Cascade)
+
+  @@map("talent_quiz_attempts")
+}
+
+// ==========================================
+// 15. MASTER DATA INSTITUSI PENDIDIKAN (KAMPUS & SEKOLAH)
+// ==========================================
+enum InstitutionCategory {
+  KAMPUS
+  SMA
+  SMK
+}
+
+model MasterInstitution {
+  id           String              @id @default(uuid()) @db.Uuid
+  externalId   String              @unique @map("external_id") // NPSN sekolah atau ID kampus dari apiindonesia
+  name         String              @db.VarChar(255)
+  shortName    String?             @map("short_name") @db.VarChar(100) // Singkatan (misal: ITB, UGM, UNCEN)
+  category     InstitutionCategory
+  status       String?             @db.VarChar(50)  // Negeri / Swasta / PTN / PTS
+  provinceName String?             @map("province_name") @db.VarChar(100)
+  regencyName  String?             @map("regency_name") @db.VarChar(100)
+  createdAt    DateTime            @default(now()) @map("created_at")
+  updatedAt    DateTime            @updatedAt @map("updated_at")
+
+  // Indeks pencarian teks cepat untuk Autocomplete Dropdown
+  @@index([name])
+  @@index([shortName])
+  @@index([category])
+  @@map("master_institutions")
+}
+
+// ==========================================
+// 16. MODEL MASTER DATA TAKSONOMI JURUSAN RESMI
+// ==========================================
+model MasterMajor {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @unique @db.VarChar(150) // Contoh: "Teknik Mesin", "Teknik Alat Berat"
+  category  String   @db.VarChar(100)        // Rumpun: "TEKNIK_MANUFAKTUR", "TEKNIK_TAMBANG", "IT", dll
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([name])
+  @@index([category])
+  @@map("master_majors")
+}
+
+// ==========================================
+// 17. MODEL KARANTINA USULAN JURUSAN BARU (WARGA)
+// ==========================================
+model MajorSuggestion {
+  id               String   @id @default(uuid()) @db.Uuid
+  suggestedName    String   @unique @map("suggested_name") @db.VarChar(150)
+  aiNormalizedName String?  @map("ai_normalized_name") @db.VarChar(150)
+  inferredCategory String?  @map("inferred_category") @db.VarChar(100)
+  inputCount       Int      @default(1) @map("input_count")
+  status           String   @default("PENDING") @db.VarChar(50) // PENDING, APPROVED, REJECTED
+  sampleInputs     Json     @default("[]") @map("sample_inputs") // Riwayat variasi typo warga
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@map("major_suggestions")
+}
+
+// ==========================================
+// 18. MODEL MASTER DATA KEAHLIAN & KOMPETENSI (SKILLS TAXONOMY)
+// ==========================================
+model MasterSkill {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @unique @db.VarChar(150) // Contoh: "Fullstack Developer", "Juru Las 3G/6G"
+  category    String   @db.VarChar(100)        // DIGITAL_IT, TAMBANG_ALAT_BERAT, WELDING_FABRIKASI, K3_SAFETY, ELEKTRIKAL, LOGISTIK_ADMIN
+  description String?  @db.VarChar(255)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([name])
+  @@index([category])
+  @@map("master_skills")
+}
+

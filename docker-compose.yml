@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgis/postgis:15-3.3-alpine # Menggunakan Postgres 15 yang sudah include PostGIS gratis
+    container_name: mimika_talenta_db
+    environment:
+      POSTGRES_USER: mimika_user
+      POSTGRES_PASSWORD: mimika_password_safe
+      POSTGRES_DB: mimika_talenta_local
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
