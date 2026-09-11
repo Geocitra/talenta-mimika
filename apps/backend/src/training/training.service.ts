@@ -11,9 +11,11 @@ import { CreateTrainingProgramDto } from './dto/create-training-program.dto';
 import { CreateTrainingSessionDto } from './dto/create-training-session.dto';
 import { CreateQuizDto } from './dto/create-quiz.dto';
 import { SubmitQuizAnswerDto } from './dto/submit-quiz.dto';
+import { EnrollBatchDto } from './dto/enroll-batch.dto';
 import {
   TrainingProgramStatus,
   TrainingEnrollmentStatus,
+  BatchEnrollmentStatus,
   QuizType,
 } from '@prisma/client';
 import * as crypto from 'crypto';
@@ -67,6 +69,27 @@ export class TrainingService {
       status: 'success',
       message: `Program ${program.title} resmi dipublikasikan ke katalog daerah.`,
       data: published,
+    };
+  }
+
+  async getAllProgramsAdmin() {
+    const programs = await this.prisma.trainingProgram.findMany({
+      include: {
+        sessions: {
+          select: { id: true, sessionOrder: true, title: true, contentType: true, hasCheckpointQuiz: true },
+          orderBy: { sessionOrder: 'asc' },
+        },
+        enrollments: {
+          select: { id: true, status: true },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return {
+      status: 'success',
+      total: programs.length,
+      data: programs,
     };
   }
 
@@ -144,6 +167,10 @@ export class TrainingService {
     const programs = await this.prisma.trainingProgram.findMany({
       where: { status: TrainingProgramStatus.PUBLISHED },
       include: {
+        provider: true,
+        batches: {
+          orderBy: { batchNumber: 'asc' },
+        },
         sessions: {
           select: { id: true, sessionOrder: true, title: true, contentType: true, hasCheckpointQuiz: true },
           orderBy: { sessionOrder: 'asc' },
@@ -190,12 +217,121 @@ export class TrainingService {
     };
   }
 
+  async enrollBatch(programId: string, batchId: string, talentId: string, dto?: EnrollBatchDto) {
+    const program = await this.prisma.trainingProgram.findUnique({
+      where: { id: programId },
+      include: { provider: true },
+    });
+
+    if (!program || program.status !== TrainingProgramStatus.PUBLISHED) {
+      throw new NotFoundException('Program pelatihan tidak tersedia untuk pendaftaran.');
+    }
+
+    const batch = await this.prisma.trainingBatch.findUnique({
+      where: { id: batchId },
+      include: {
+        _count: { select: { enrollments: true } },
+      },
+    });
+
+    if (!batch || batch.programId !== programId) {
+      throw new NotFoundException('Batch cohort tidak ditemukan pada program ini.');
+    }
+
+    if (!batch.isOpen) {
+      throw new BadRequestException('Pendaftaran untuk batch ini telah ditutup.');
+    }
+
+    if (batch._count.enrollments >= batch.quota) {
+      throw new BadRequestException(`Kuota kursi untuk ${batch.batchName} telah penuh (${batch.quota} kursi).`);
+    }
+
+    const talent = await this.prisma.talent.findUnique({
+      where: { id: talentId },
+      include: { user: { select: { email: true } } },
+    });
+
+    if (!talent) {
+      throw new NotFoundException('Data profil talenta tidak ditemukan.');
+    }
+
+    // Cek Pendaftaran Ganda
+    const existing = await this.prisma.trainingEnrollment.findFirst({
+      where: { talentId, programId },
+    });
+
+    if (existing) {
+      return {
+        status: 'success',
+        message: 'Anda sudah terdaftar pada program pelatihan ini sebelumnya.',
+        data: {
+          enrollmentId: existing.id,
+          batchName: batch.batchName,
+          selectionStatus: existing.selectionStatus,
+          whatsAppOutreach: this.buildTalentWhatsAppDraft(talent, program, batch),
+        },
+      };
+    }
+
+    const enrollment = await this.prisma.trainingEnrollment.create({
+      data: {
+        talentId,
+        programId,
+        batchId,
+        status: TrainingEnrollmentStatus.ENROLLED,
+        selectionStatus: BatchEnrollmentStatus.REGISTERED,
+      },
+    });
+
+    const whatsAppOutreach = this.buildTalentWhatsAppDraft(talent, program, batch);
+
+    return {
+      status: 'success',
+      message: `Pendaftaran berhasil! Anda resmi terdata di ${batch.batchName} (${program.title}). Silakan hubungi narahubung resmi lembaga.`,
+      data: {
+        enrollmentId: enrollment.id,
+        batchName: batch.batchName,
+        selectionStatus: enrollment.selectionStatus,
+        whatsAppOutreach,
+      },
+    };
+  }
+
+  private buildTalentWhatsAppDraft(talent: any, program: any, batch: any) {
+    const picPhone = program.provider?.picPhone || '';
+    const picName = program.provider?.picName || 'Admin Pendaftaran';
+    const institution = program.provider?.institutionName || 'Balai Pelatihan';
+
+    const text = `Halo Bapak/Ibu ${picName} (${institution}),
+
+Saya *${talent.fullName}* (NIK: ${talent.nik}) telah resmi mendaftar melalui platform *MIMIKA TALENTA* untuk program:
+• *${program.title}*
+• *${batch.batchName}*
+• Skema: ${batch.fundingType.replace(/_/g, ' ')} (${batch.trainingMethod})
+
+Mohon informasi terkait berkas verifikasi dan jadwal seleksi wawancara tatap muka. Terima kasih.`;
+
+    let cleanedPhone = picPhone.replace(/[^0-9]/g, '');
+    if (cleanedPhone.startsWith('0')) cleanedPhone = '62' + cleanedPhone.slice(1);
+
+    const waUrl = cleanedPhone ? `https://wa.me/${cleanedPhone}?text=${encodeURIComponent(text)}` : undefined;
+
+    return {
+      picName,
+      picPhone,
+      draftMessage: text,
+      whatsAppDirectUrl: waUrl,
+    };
+  }
+
   async getMyEnrollments(talentId: string) {
     const enrollments = await this.prisma.trainingEnrollment.findMany({
       where: { talentId },
       include: {
+        batch: true,
         program: {
           include: {
+            provider: true,
             sessions: {
               select: { id: true, sessionOrder: true, title: true },
               orderBy: { sessionOrder: 'asc' },
@@ -419,16 +555,28 @@ export class TrainingService {
           const targetSkills = (Array.isArray(program.targetSkills) ? program.targetSkills : []) as any[];
           const existingSkills = (Array.isArray(talent.skills) ? talent.skills : []) as any[];
 
-          // Merge skill baru tanpa duplikasi (jika sudah ada, perbarui level kemahirannya)
+          // Merge skill baru tanpa duplikasi (jika sudah ada, perbarui level kemahirannya & sematkan verifikasi resmi)
           const mergedSkills = [...existingSkills];
           targetSkills.forEach((newSkill) => {
+            const skillObj = typeof newSkill === 'string' ? { name: newSkill, level: 'INTERMEDIATE' } : newSkill;
+            const verifiedSkill = {
+              name: skillObj.name,
+              level: skillObj.level || 'INTERMEDIATE',
+              isLmsVerified: true,
+              certificateNumber: certNumber,
+              verifiedAt: new Date().toISOString(),
+            };
+
             const index = mergedSkills.findIndex(
-              (s) => s.name?.toLowerCase() === newSkill.name?.toLowerCase(),
+              (s) => s.name?.toLowerCase() === verifiedSkill.name?.toLowerCase(),
             );
             if (index >= 0) {
-              mergedSkills[index] = newSkill; // Upgrade level
+              mergedSkills[index] = {
+                ...mergedSkills[index],
+                ...verifiedSkill,
+              }; // Upgrade level & lock verification
             } else {
-              mergedSkills.push(newSkill); // Injeksi keahlian baru
+              mergedSkills.push(verifiedSkill); // Injeksi keahlian baru
             }
           });
 

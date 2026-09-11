@@ -13,6 +13,7 @@ generator client {
 enum Role {
   TALENT
   EMPLOYER
+  TRAINING_PROVIDER
   DISNAKER_ADMIN
   EXECUTIVE
   SUPERADMIN
@@ -32,6 +33,85 @@ enum OtpPurpose {
 enum VacancyStatus {
   OPEN
   CLOSED
+  EXPIRED
+}
+
+enum OpportunityType {
+  JOB
+  INTERNSHIP
+}
+
+enum InstitutionType {
+  BLK_PEMERINTAH
+  LPK_SWASTA
+  LSP_BNSP
+  PUSAT_PELATIHAN_INDUSTRI
+}
+
+enum ProgramFundingType {
+  GRATIS_APBD_MIMIKA
+  BEASISWA_CSR
+  MANDIRI_BERBAYAR
+}
+
+enum TrainingMethod {
+  BOARDING
+  NON_BOARDING
+  MTU
+}
+
+enum CertificateType {
+  PELATIHAN_STTP
+  KOMPETENSI_BNSP
+  LISENSI_K3_KEMNAKER
+  KOMBINASI_LENGKAP
+}
+
+enum ProgramApprovalStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+}
+
+enum BatchEnrollmentStatus {
+  REGISTERED
+  ADMITTED
+  REJECTED_SELECTION
+  COMPLETED
+  DROPPED_OUT
+}
+
+enum EmploymentContractType {
+  PKWT
+  PKWTT
+  HARIAN_LEPAS
+  PEMAGANGAN
+}
+
+enum WorkZone {
+  TIMIKA_KOTA
+  KUALA_KENCANA
+  PORTSITE_POMAKO
+  HIGHLAND_TEMBAGAPURA
+}
+
+enum WorkSchedule {
+  NORMAL_DAY
+  SHIFT_24H
+  ROSTER_FIELD
+}
+
+// ==========================================
+// ENUM: RENTANG SKALA JUMLAH KARYAWAN BAKU
+// ==========================================
+enum CompanySize {
+  SCALE_1_10      // 1 - 10 Karyawan (Usaha Mikro)
+  SCALE_11_50     // 11 - 50 Karyawan (Usaha Kecil)
+  SCALE_51_200    // 51 - 200 Karyawan (Usaha Menengah)
+  SCALE_201_500   // 201 - 500 Karyawan (Usaha Menengah-Besar)
+  SCALE_501_1000  // 501 - 1.000 Karyawan (Usaha Skala Besar)
+  SCALE_OVER_1000 // > 1.000 Karyawan (Korporasi)
 }
 
 // ==========================================
@@ -50,6 +130,7 @@ model User {
   // Relasi Sub-tipe 1-to-1
   talent           Talent?
   employer         Employer?
+  trainingProvider TrainingProvider?
   trainingPrograms TrainingProgram[]
 
   @@map("users")
@@ -98,13 +179,32 @@ model Employer {
   id                 String             @id @db.Uuid
   nib                String             @unique @db.VarChar(50) // NIB unik perusahaan
   companyName        String             @map("company_name") @db.VarChar(255)
+  brandName          String?            @map("brand_name") @db.VarChar(255) // Nama Dagang Populer
+  logoUrl            String?            @map("logo_url") @db.VarChar(500)
+  nibDocUrl          String?            @map("nib_doc_url") @db.Text       // Berkas PDF NIB OSS Resmi
+  npwpNumber         String?            @map("npwp_number") @db.VarChar(50)
+  
+  // Person in Charge (PIC) Rekrutmen
+  picName            String?            @map("pic_name") @db.VarChar(150)
+  picRole            String?            @map("pic_role") @db.VarChar(100)  // Jabatan PIC (misal: HR Manager)
+  picPhone           String?            @map("pic_phone") @db.VarChar(30)  // No WA Komunikasi
+  picEmail           String?            @map("pic_email") @db.VarChar(150) // Email Rekrutmen
+  
+  // Profil Usaha & Skala
   industrySector     String?            @map("industry_sector") @db.VarChar(150)
-  employeeCount      Int?               @default(0) @map("employee_count")
+  companySize        CompanySize        @default(SCALE_1_10) @map("company_size")
+  employeeCount      Int?               @default(10) @map("employee_count") // Nilai median numerik
+  companyBio         String?            @map("company_bio") @db.Text
+  websiteUrl         String?            @map("website_url") @db.VarChar(255)
+  
+  // Geospasial Kantor Operasional Mimika
   address            String?            @db.Text
   locationLat        Float?             @map("location_lat") // Titik Koordinat Garis Lintang
   locationLng        Float?             @map("location_lng") // Titik Koordinat Garis Bujur
-  companyBio         String?            @map("company_bio") @db.Text
+  
+  // Status Kepatuhan Disnaker
   verificationStatus VerificationStatus @default(PENDING) @map("verification_status")
+  verificationNotes  String?            @map("verification_notes") @db.Text
   verifiedBy         String?            @map("verified_by") @db.Uuid
   verifiedAt         DateTime?          @map("verified_at")
   createdAt          DateTime           @default(now()) @map("created_at")
@@ -135,23 +235,53 @@ model EmailVerification {
 }
 
 // ==========================================
-// 6. JOB VACANCY ENTITY (Kebutuhan Kerja Industri)
+// 6. JOB VACANCY ENTITY (Kebutuhan Kerja Industri & Pemagangan)
 // ==========================================
 model JobVacancy {
-  id                 String        @id @default(uuid()) @db.Uuid
-  employerId         String        @map("employer_id") @db.Uuid
-  title              String        @db.VarChar(255)
-  taskDescription    String        @map("task_description") @db.Text
-  projectDuration    String        @map("project_duration") @db.VarChar(100)
-  requiredSkills     Json          @default("[]") @map("required_skills")
-  minEducation       String        @map("min_education") @db.VarChar(50) // SMA, SMK, D3, S1, dll.
-  minExperienceYears Int           @default(0) @map("min_experience_years")
-  allowEquivalence   Boolean       @default(true) @map("allow_equivalence") // Fuzzy Matching Toggle
-  jobLocationLat     Float?        @map("job_location_lat")
-  jobLocationLng     Float?        @map("job_location_lng")
-  status             VacancyStatus @default(OPEN)
-  createdAt          DateTime      @default(now()) @map("created_at")
-  updatedAt          DateTime      @updatedAt @map("updated_at")
+  id                     String          @id @default(uuid()) @db.Uuid
+  employerId             String          @map("employer_id") @db.Uuid
+  title                  String                 @db.VarChar(255)
+  opportunityType        OpportunityType        @default(JOB) @map("opportunity_type")
+  contractType           EmploymentContractType @default(PKWT) @map("contract_type")
+  contractDurationMonths Int?                   @default(12) @map("contract_duration_months")
+  quota                  Int                    @default(1)
+
+  // Transparansi Finansial & Fasilitas
+  salaryMin              Decimal?        @map("salary_min") @db.Decimal(12, 2)
+  salaryMax              Decimal?        @map("salary_max") @db.Decimal(12, 2)
+  isSalaryDisclosed      Boolean         @default(true) @map("is_salary_disclosed")
+  stipendAmount          Decimal?        @map("stipend_amount") @db.Decimal(12, 2)
+  benefits               Json            @default("[]") // [MESS_AKOMODASI, KANTIN_MAKAN, BUS_JEMPUTAN, BPJS_LENGKAP, ROSTER_CUTI, APD_SAFETY]
+  workTools              Json            @default("[]") @map("work_tools") // [Laptop dinas, APD K3 Lapangan, Toolkit, Kendaraan operasional]
+
+  // Geografis & Pola Kerja
+  isSameAsOfficeLocation Boolean         @default(true) @map("is_same_as_office_location")
+  workZone               WorkZone        @default(TIMIKA_KOTA) @map("work_zone")
+  workSchedule           WorkSchedule    @default(NORMAL_DAY) @map("work_schedule")
+  jobLocationLat         Float?          @map("job_location_lat")
+  jobLocationLng         Float?          @map("job_location_lng")
+
+  // Khusus Magang (Learning Curve & Mentorship)
+  skillsGained           Json            @default("[]") @map("skills_gained")
+  mentorName             String?         @map("mentor_name") @db.VarChar(150)
+  mentorRole             String?         @map("mentor_role") @db.VarChar(150)
+  hasAbsorptionOpportunity Boolean       @default(false) @map("has_absorption_opportunity")
+
+  // Parameter Kualifikasi
+  taskDescription        String          @map("task_description") @db.Text
+  projectDuration        String          @map("project_duration") @db.VarChar(100)
+  requiredSkills         Json            @default("[]") @map("required_skills")
+  mandatoryCerts         Json            @default("[]") @map("mandatory_certs")
+  preferredMajors        Json            @default("[]") @map("preferred_majors")
+  minEducation           String          @map("min_education") @db.VarChar(50) // SMA, SMK, D3, S1, dll.
+  minExperienceYears     Int             @default(0) @map("min_experience_years")
+  allowEquivalence       Boolean         @default(true) @map("allow_equivalence") // Fuzzy Matching Toggle (Default ON)
+  status                 VacancyStatus   @default(OPEN)
+  activeDaysDuration     Int             @default(14) @map("active_days_duration")
+  expiresAt              DateTime?       @map("expires_at")
+  closureReason          String?         @map("closure_reason") @db.VarChar(255)
+  createdAt              DateTime        @default(now()) @map("created_at")
+  updatedAt              DateTime        @updatedAt @map("updated_at")
 
   // Relasi ke Employer
   employer   Employer         @relation(fields: [employerId], references: [id], onDelete: Cascade)
@@ -228,29 +358,43 @@ enum SessionContentType {
 // 8. MODEL PROGRAM PELATIHAN (UNIFIED TABLE)
 // ==========================================
 model TrainingProgram {
-  id            String                @id @default(uuid()) @db.Uuid
-  createdBy     String                @map("created_by") @db.Uuid
-  title         String                @db.VarChar(255)
-  providerName  String                @default("Disnakertrans Mimika") @map("provider_name") @db.VarChar(255)
-  deliveryMode  TrainingDeliveryMode  @default(ONLINE) @map("delivery_mode")
-  category      TrainingCategory      @default(K3_PERTAMBANGAN)
-  description   String                @db.Text
-  syllabus      String?               @db.Text
-  quota         Int?                  @default(30) // Relevan untuk kapasitas kelas Offline
-  totalSessions Int                   @default(1) @map("total_sessions")
-  passingGrade  Int                   @default(80) @map("passing_grade") // Syarat lulus ujian akhir (0-100)
-  targetSkills  Json                  @default("[]") @map("target_skills") // Array skill diinjeksi saat lulus
-  status        TrainingProgramStatus @default(DRAFT)
-  startDate     DateTime?             @map("start_date") @db.Date
-  endDate       DateTime?             @map("end_date") @db.Date
-  createdAt     DateTime              @default(now()) @map("created_at")
-  updatedAt     DateTime              @updatedAt @map("updated_at")
+  id                 String                @id @default(uuid()) @db.Uuid
+  providerId         String?               @map("provider_id") @db.Uuid
+  createdBy          String                @map("created_by") @db.Uuid
+  title              String                @db.VarChar(255)
+  programCode        String?               @map("program_code") @db.VarChar(20)
+  providerName       String                @default("Disnakertrans Mimika") @map("provider_name") @db.VarChar(255)
+  category           TrainingCategory      @default(K3_PERTAMBANGAN)
+  subCategory        String?               @map("sub_category") @db.VarChar(100)
+  certificateType    CertificateType       @default(PELATIHAN_STTP) @map("certificate_type")
+  deliveryMode       TrainingDeliveryMode  @default(ONLINE) @map("delivery_mode")
+  description        String                @db.Text
+  syllabus           String?               @db.Text
+  requirements       Json                  @default("[]")
+  quota              Int?                  @default(30) // Relevan untuk kapasitas kelas Offline
+  totalSessions      Int                   @default(1) @map("total_sessions")
+  totalLessonHours   Int?                  @default(160) @map("total_lesson_hours")
+  durationDays       Int                   @default(20) @map("duration_days")
+  passingGrade       Int                   @default(80) @map("passing_grade") // Syarat lulus ujian akhir (0-100)
+  targetSkills       Json                  @default("[]") @map("target_skills") // Array skill diinjeksi saat lulus
+  approvalStatus     ProgramApprovalStatus @default(DRAFT) @map("approval_status")
+  approvalNotes      String?               @map("approval_notes") @db.Text
+  status             TrainingProgramStatus @default(DRAFT)
+  coverImageUrl      String?               @map("cover_image_url") @db.VarChar(500)
+  ratingScore        Decimal               @default(5.0) @map("rating_score") @db.Decimal(3, 2)
+  reviewCount        Int                   @default(0) @map("review_count")
+  startDate          DateTime?             @map("start_date") @db.Date
+  endDate            DateTime?             @map("end_date") @db.Date
+  createdAt          DateTime              @default(now()) @map("created_at")
+  updatedAt          DateTime              @updatedAt @map("updated_at")
 
   // Relasi
-  author      User                 @relation(fields: [createdBy], references: [id], onDelete: Cascade)
-  sessions    TrainingSession[]
-  quizzes     TrainingQuiz[]
-  enrollments TrainingEnrollment[]
+  provider           TrainingProvider?     @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  author             User                  @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+  batches            TrainingBatch[]
+  sessions           TrainingSession[]
+  quizzes            TrainingQuiz[]
+  enrollments        TrainingEnrollment[]
 
   @@map("training_programs")
 }
@@ -328,27 +472,106 @@ model TrainingEnrollment {
   id                     String                   @id @default(uuid()) @db.Uuid
   talentId               String                   @map("talent_id") @db.Uuid
   programId              String                   @map("program_id") @db.Uuid
+  batchId                String?                  @map("batch_id") @db.Uuid
   status                 TrainingEnrollmentStatus @default(ENROLLED)
+  selectionStatus        BatchEnrollmentStatus    @default(REGISTERED) @map("selection_status")
   currentSessionUnlocked Int                      @default(1) @map("current_session_unlocked")
   finalScore             Decimal?                 @map("final_score") @db.Decimal(5, 2)
 
-  // Sertifikasi Terintegrasi (Solusi Gap 5)
-  certificateNumber String? @unique @map("certificate_number") @db.VarChar(100)
-  certificateUrl    String? @map("certificate_url") @db.Text
-  qrCodeHash        String? @map("qr_code_hash") @db.VarChar(255)
+  // Sertifikasi Terintegrasi (Solusi Gap 5 & BNSP)
+  certificateNumber      String?                  @unique @map("certificate_number") @db.VarChar(100)
+  bnspCertificateNumber  String?                  @map("bnsp_certificate_number") @db.VarChar(100)
+  certificateUrl         String?                  @map("certificate_url") @db.Text
+  qrCodeHash             String?                  @map("qr_code_hash") @db.VarChar(255)
 
-  completedAt DateTime? @map("completed_at")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
+  completedAt            DateTime?                @map("completed_at")
+  createdAt              DateTime                 @default(now()) @map("created_at")
+  updatedAt              DateTime                 @updatedAt @map("updated_at")
 
   // Relasi
-  talent           Talent                 @relation(fields: [talentId], references: [id], onDelete: Cascade)
-  program          TrainingProgram        @relation(fields: [programId], references: [id], onDelete: Cascade)
-  lessonProgresses TalentLessonProgress[]
-  quizAttempts     TalentQuizAttempt[]
+  talent                 Talent                   @relation(fields: [talentId], references: [id], onDelete: Cascade)
+  program                TrainingProgram          @relation(fields: [programId], references: [id], onDelete: Cascade)
+  batch                  TrainingBatch?           @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  lessonProgresses       TalentLessonProgress[]
+  quizAttempts           TalentQuizAttempt[]
 
   @@unique([talentId, programId])
+  @@index([batchId])
   @@map("training_enrollments")
+}
+
+// ==========================================
+// 12A. MODEL PROFIL LEMBAGA PENYEDIA (TRAINING PROVIDER)
+// ==========================================
+model TrainingProvider {
+  id                 String             @id @db.Uuid
+  institutionName    String             @map("institution_name") @db.VarChar(255)
+  institutionType    InstitutionType    @default(LPK_SWASTA) @map("institution_type")
+  vinNumber          String?            @map("vin_number") @db.VarChar(50)
+  bnspLicenseNumber  String?            @map("bnsp_license_number") @db.VarChar(50)
+  legalDocUrl        String?            @map("legal_doc_url") @db.Text
+  logoUrl            String?            @map("logo_url") @db.VarChar(500)
+  accreditation      String?            @default("BELUM_TERAKREDITASI") @db.VarChar(50)
+
+  // PIC & Fasilitas
+  picName            String?            @map("pic_name") @db.VarChar(150)
+  picRole            String?            @map("pic_role") @db.VarChar(100)
+  picPhone           String?            @map("pic_phone") @db.VarChar(30)
+  picEmail           String?            @map("pic_email") @db.VarChar(150)
+  address            String?            @db.Text
+  locationLat        Float?             @map("location_lat")
+  locationLng        Float?             @map("location_lng")
+  institutionBio     String?            @map("institution_bio") @db.Text
+  websiteUrl         String?            @map("website_url") @db.VarChar(255)
+
+  // Audit Tier-1 Disnaker
+  verificationStatus VerificationStatus @default(PENDING) @map("verification_status")
+  verificationNotes  String?            @map("verification_notes") @db.Text
+  verifiedAt         DateTime?          @map("verified_at")
+  verifiedBy         String?            @map("verified_by") @db.Uuid
+
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
+
+  user               User               @relation(fields: [id], references: [id], onDelete: Cascade)
+  programs           TrainingProgram[]
+
+  @@map("training_providers")
+}
+
+// ==========================================
+// 12B. MODEL TRAINING_BATCHES (COHORT JADWAL & KUOTA)
+// ==========================================
+model TrainingBatch {
+  id                 String              @id @default(uuid()) @db.Uuid
+  programId          String              @map("program_id") @db.Uuid
+  batchName          String              @map("batch_name") @db.VarChar(100)
+  batchNumber        Int                 @default(1) @map("batch_number")
+  fundingType        ProgramFundingType  @default(GRATIS_APBD_MIMIKA) @map("funding_type")
+  priceAmount        Decimal?            @map("price_amount") @db.Decimal(12, 2)
+  trainingMethod     TrainingMethod      @default(NON_BOARDING) @map("training_method")
+  quota              Int                 @default(20)
+
+  // Fasilitas Kesejahteraan (Pills)
+  welfareBenefits    Json                @default("[]") @map("welfare_benefits")
+
+  // Tanggal & Lokasi
+  registrationStart  DateTime            @map("registration_start") @db.Date
+  registrationEnd    DateTime            @map("registration_end") @db.Date
+  trainingStart      DateTime            @map("training_start") @db.Date
+  trainingEnd        DateTime            @map("training_end") @db.Date
+  venueAddress       String?             @map("venue_address") @db.Text
+  venueLat           Float?              @map("venue_lat")
+  venueLng           Float?              @map("venue_lng")
+
+  isOpen             Boolean             @default(true) @map("is_open")
+  createdAt          DateTime            @default(now()) @map("created_at")
+  updatedAt          DateTime            @updatedAt @map("updated_at")
+
+  program            TrainingProgram     @relation(fields: [programId], references: [id], onDelete: Cascade)
+  enrollments        TrainingEnrollment[]
+
+  @@map("training_batches")
 }
 
 // ==========================================

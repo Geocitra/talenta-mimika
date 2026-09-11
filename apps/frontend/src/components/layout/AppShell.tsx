@@ -3,36 +3,46 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { 
-  Menu, 
-  X, 
-  UserCheck, 
-  Building2, 
-  Briefcase, 
-  LogOut, 
-  CheckCircle2, 
+import {
+  Menu,
+  X,
+  UserCheck,
+  Building2,
+  Briefcase,
+  LogOut,
   ShieldCheck,
-  ChevronRight,
   GraduationCap,
   BarChart3,
   Database,
   Users,
   Wrench,
-  Inbox
+  Inbox,
+  User,
+  Bell,
+  Sparkles
 } from 'lucide-react';
 import { apiFetch } from '@/lib/api';
 
 interface AppShellProps {
   children: React.ReactNode;
-  userRole: 'TALENT' | 'EMPLOYER' | 'DISNAKER_ADMIN' | 'EXECUTIVE' | 'SUPERADMIN';
+  userRole: 'TALENT' | 'EMPLOYER' | 'DISNAKER_ADMIN' | 'EXECUTIVE' | 'SUPERADMIN' | 'TRAINING_PROVIDER';
   userName: string;
   activeTab?: string;
   onTabChange?: (tab: any) => void;
   curationBadge?: number;
+  pendingEmployersBadge?: number;
 }
 
-export default function AppShell({ children, userRole, userName, activeTab, onTabChange, curationBadge }: AppShellProps) {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+export default function AppShell({
+  children,
+  userRole,
+  userName,
+  activeTab,
+  onTabChange,
+  curationBadge,
+  pendingEmployersBadge,
+}: AppShellProps) {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
 
@@ -41,92 +51,199 @@ export default function AppShell({ children, userRole, userName, activeTab, onTa
     router.push('/login');
   };
 
+  // Navigasi Terstruktur Berdasarkan Peran Pengguna
   const navItems = [
-    ...(userRole === 'TALENT' ? [
-      { name: 'Profil Talenta Saya', href: '/talent', icon: UserCheck },
-      { name: 'Katalog Pelatihan', href: '/talent/trainings', icon: GraduationCap },
-    ] : []),
-    ...(userRole === 'EMPLOYER' ? [
-      { name: 'Profil Perusahaan', href: '/employer', icon: Building2 },
-      { name: 'Kelola Lowongan', href: '/employer/vacancies', icon: Briefcase },
-    ] : []),
-    ...(userRole === 'SUPERADMIN' ? [
-      { name: 'Ikhtisar Master Data', href: '/admin?tab=OVERVIEW', icon: Database, tab: 'OVERVIEW' },
-      { name: 'Manajemen Pengguna', href: '/admin?tab=USERS', icon: Users, tab: 'USERS' },
-      { name: 'Master Keahlian (Skills)', href: '/admin?tab=SKILLS', icon: Wrench, tab: 'SKILLS' },
-      { name: 'Master Jurusan & Kurasi', href: '/admin?tab=CURATION', icon: Inbox, tab: 'CURATION', badge: curationBadge },
-      { name: 'Master Kampus & Sekolah', href: '/admin?tab=INSTITUTIONS', icon: Building2, tab: 'INSTITUTIONS' },
-    ] : []),
-    ...(userRole === 'DISNAKER_ADMIN' || userRole === 'EXECUTIVE' ? [
-      { name: 'Command Center', href: '/admin', icon: BarChart3 },
-      { name: 'Verifikasi Perusahaan', href: '/employer', icon: ShieldCheck },
-      { name: 'Katalog Pelatihan', href: '/talent/trainings', icon: GraduationCap },
-    ] : []),
+    ...(userRole === 'TALENT'
+      ? [
+          { name: 'Profil Talenta Saya', href: '/talent', icon: UserCheck },
+          { name: 'Katalog Pelatihan & Sertifikasi', href: '/talent/trainings', icon: GraduationCap },
+        ]
+      : []),
+    ...(userRole === 'EMPLOYER'
+      ? [
+          { name: 'Dasbor Ringkasan', href: '/employer', icon: BarChart3, exact: true },
+          { name: 'Profil & Dokumen NIB', href: '/employer/profile', icon: Building2 },
+          { name: 'Kelola Lowongan & Radar AI', href: '/employer/vacancies', icon: Briefcase },
+        ]
+      : []),
+    ...(userRole === 'TRAINING_PROVIDER'
+      ? [
+          { name: 'Dasbor Balai', href: '/provider', icon: BarChart3, exact: true },
+          { name: 'Profil & Legalitas', href: '/provider/profile', icon: Building2 },
+          { name: 'Studio Program & Batch', href: '/provider/programs/create', icon: GraduationCap },
+        ]
+      : []),
+    ...(userRole === 'SUPERADMIN'
+      ? [
+          { name: 'Dasbor Master Data', href: '/admin?tab=OVERVIEW', icon: Database, tab: 'OVERVIEW' },
+          { name: 'Verifikasi Perusahaan', href: '/admin?tab=EMPLOYERS', icon: ShieldCheck, tab: 'EMPLOYERS', badge: pendingEmployersBadge },
+          { name: 'Pelatihan Daerah', href: '/admin?tab=TRAININGS', icon: GraduationCap, tab: 'TRAININGS' },
+          { name: 'Manajemen Akun', href: '/admin?tab=USERS', icon: Users, tab: 'USERS' },
+          { name: 'Master Keahlian', href: '/admin?tab=SKILLS', icon: Wrench, tab: 'SKILLS' },
+          { name: 'Kurasi Jurusan', href: '/admin?tab=CURATION', icon: Inbox, tab: 'CURATION', badge: curationBadge },
+          { name: 'Kampus & Sekolah', href: '/admin?tab=INSTITUTIONS', icon: Building2, tab: 'INSTITUTIONS' },
+        ]
+      : []),
+    ...(userRole === 'DISNAKER_ADMIN'
+      ? [
+          { name: 'Command Center', href: '/admin?tab=OVERVIEW', icon: BarChart3, tab: 'OVERVIEW' },
+          { name: 'Verifikasi Perusahaan', href: '/admin?tab=EMPLOYERS', icon: ShieldCheck, tab: 'EMPLOYERS', badge: pendingEmployersBadge },
+          { name: 'Katalog Pelatihan Daerah', href: '/admin?tab=TRAININGS', icon: GraduationCap, tab: 'TRAININGS' },
+        ]
+      : []),
+    ...(userRole === 'EXECUTIVE'
+      ? [
+          { name: 'Pusat Intelijen Pimpinan', href: '/admin?tab=OVERVIEW', icon: BarChart3, tab: 'OVERVIEW' },
+          { name: 'Verifikasi Perusahaan', href: '/admin?tab=EMPLOYERS', icon: ShieldCheck, tab: 'EMPLOYERS', badge: pendingEmployersBadge },
+          { name: 'Katalog Pelatihan Daerah', href: '/admin?tab=TRAININGS', icon: GraduationCap, tab: 'TRAININGS' },
+        ]
+      : []),
   ];
 
   return (
-    <div className="h-screen flex flex-col bg-neutral-100 text-neutral-900 font-sans overflow-hidden">
-      {/* Top Navbar */}
-      <header className="h-16 shrink-0 bg-white border-b border-neutral-200 flex items-center justify-between px-4 lg:px-6 z-30">
-        <div className="flex items-center gap-3">
-          <button 
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-2 text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 rounded-lg transition-colors focus:outline-none cursor-pointer"
-            aria-label="Toggle Menu"
-          >
-            {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-          </button>
-          
-          <div className="flex items-center gap-3">
-            <span className="font-bold tracking-wider text-sm lg:text-base border-r border-neutral-200 pr-3 text-neutral-900">
-              MIMIKA TALENTA
-            </span>
-            <span className="text-xs uppercase tracking-widest text-neutral-500 hidden sm:inline font-medium">
-              Workforce Intelligence
-            </span>
-          </div>
-        </div>
+    <div className="min-h-screen flex flex-col bg-neutral-100 text-neutral-900 font-sans antialiased">
+      {/* ========================================================================= */}
+      {/* 1. TOP NAVBAR (STICKY ATAS GAYA GLINTS / KEMNAKER)                        */}
+      {/* ========================================================================= */}
+      <header className="sticky top-0 z-50 bg-white border-b border-neutral-300 shadow-xs">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            {/* SISI KIRI: BRANDING & LOGO */}
+            <div className="flex items-center gap-8">
+              <Link href={userRole === 'TALENT' ? '/talent' : userRole === 'EMPLOYER' ? '/employer' : userRole === 'TRAINING_PROVIDER' ? '/provider' : '/admin'} className="flex items-center gap-3">
+                <div className="bg-neutral-900 text-white font-bold text-xs tracking-wider px-2.5 py-1.5 uppercase font-mono">
+                  MT
+                </div>
+                <div>
+                  <span className="font-bold tracking-tight text-sm uppercase text-neutral-900 block leading-none">
+                    MIMIKA TALENTA
+                  </span>
+                  <span className="text-[10px] uppercase tracking-widest text-neutral-500 font-medium block mt-0.5">
+                    Disnakertrans Kab. Mimika
+                  </span>
+                </div>
+              </Link>
 
-        <div className="flex items-center gap-3">
-          <div className="text-right hidden sm:block">
-            <div className="text-xs font-bold text-neutral-900">{userName}</div>
-            <div className="text-[10px] tracking-wider text-neutral-500 uppercase font-semibold">{userRole}</div>
-          </div>
-          <button
-            onClick={handleLogout}
-            className="p-2 text-neutral-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-            title="Keluar Akun"
-          >
-            <LogOut className="w-4 h-4" />
-          </button>
-        </div>
-      </header>
+              {/* NAVIGASI HORIZONTAL DESKTOP (TENGAH / KIRI) */}
+              <nav className="hidden lg:flex items-center space-x-1">
+                {navItems.map((item: any) => {
+                  const Icon = item.icon;
+                  const isActive = item.tab && activeTab
+                    ? item.tab === activeTab
+                    : item.exact
+                    ? pathname === item.href
+                    : pathname === item.href || (item.href !== '/employer' && pathname.startsWith(item.href));
 
-      <div className="flex-1 flex min-h-0 relative overflow-hidden">
-        {/* Backdrop untuk Mobile */}
-        {sidebarOpen && (
-          <div 
-            className="fixed inset-0 bg-neutral-900/40 z-20 lg:hidden"
-            onClick={() => setSidebarOpen(false)}
-          />
-        )}
+                  if (item.tab && onTabChange) {
+                    return (
+                      <button
+                        key={item.name}
+                        type="button"
+                        onClick={() => onTabChange(item.tab)}
+                        className={`inline-flex items-center gap-2 px-3 py-2 text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer border-b-2 ${
+                          isActive
+                            ? 'border-neutral-900 text-neutral-900 bg-neutral-50'
+                            : 'border-transparent text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50'
+                        }`}
+                      >
+                        <Icon className={`w-4 h-4 ${isActive ? 'text-neutral-900' : 'text-neutral-500'}`} />
+                        <span>{item.name}</span>
+                        {typeof item.badge === 'number' && item.badge > 0 && (
+                          <span className="ml-1 px-1.5 py-0.2 bg-amber-500 text-white font-mono text-[10px] font-bold">
+                            {item.badge}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  }
 
-        {/* Sidebar Navigasi Full Edge-to-Edge */}
-        <aside className={`
-          fixed lg:static top-16 bottom-0 left-0 z-20 w-64 bg-white border-r border-neutral-200 shrink-0
-          transform transition-transform duration-200 ease-in-out flex flex-col justify-between overflow-y-auto
-          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0 lg:w-64'}
-        `}>
-          <div className="py-4 space-y-1">
-            <div className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider px-5 py-2">
-              Menu Navigasi
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={`inline-flex items-center gap-2 px-3 py-2 text-xs font-bold uppercase tracking-wider transition-colors border-b-2 ${
+                        isActive
+                          ? 'border-neutral-900 text-neutral-900 bg-neutral-50'
+                          : 'border-transparent text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50'
+                      }`}
+                    >
+                      <Icon className={`w-4 h-4 ${isActive ? 'text-neutral-900' : 'text-neutral-500'}`} />
+                      <span>{item.name}</span>
+                      {typeof item.badge === 'number' && item.badge > 0 && (
+                        <span className="ml-1 px-1.5 py-0.2 bg-amber-500 text-white font-mono text-[10px] font-bold">
+                          {item.badge}
+                        </span>
+                      )}
+                    </Link>
+                  );
+                })}
+              </nav>
             </div>
-            <nav className="space-y-0.5">
+
+            {/* SISI KANAN: IDENTITAS PENGGUNA & KELUAR */}
+            <div className="hidden sm:flex items-center gap-4">
+              <div className="text-right border-l border-neutral-200 pl-4">
+                <div className="text-xs font-bold text-neutral-900 truncate max-w-[180px]">
+                  {userName}
+                </div>
+                <div className="flex items-center justify-end gap-1.5 mt-0.5">
+                  <span className="w-1.5 h-1.5 bg-emerald-600 inline-block"></span>
+                  <span className="text-[10px] tracking-wider text-neutral-500 uppercase font-semibold">
+                    {userRole}
+                  </span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="p-2 text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 border border-neutral-300 transition-colors cursor-pointer"
+                title="Keluar Akun"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* TOMBOL HAMBURGER MOBILE */}
+            <div className="flex sm:hidden items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="p-2 text-neutral-700 hover:text-neutral-900 border border-neutral-300 bg-white"
+                aria-label="Buka Menu"
+              >
+                {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* MENU LIPAT RESPONSIVE UNTUK PONSEL / TABLET KECIL */}
+        {mobileMenuOpen && (
+          <div className="lg:hidden border-t border-neutral-200 bg-white px-4 pt-3 pb-5 space-y-3 shadow-lg animate-in slide-in-from-top-2">
+            <div className="p-3 bg-neutral-50 border border-neutral-200 flex justify-between items-center">
+              <div>
+                <span className="text-xs font-bold text-neutral-900 block">{userName}</span>
+                <span className="text-[10px] text-neutral-500 uppercase tracking-wider">{userRole}</span>
+              </div>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="text-xs text-red-700 font-bold uppercase flex items-center gap-1 hover:underline"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                Keluar
+              </button>
+            </div>
+
+            <div className="space-y-1">
               {navItems.map((item: any) => {
                 const Icon = item.icon;
-                const isActive = item.tab && activeTab 
-                  ? item.tab === activeTab 
-                  : pathname === item.href;
+                const isActive = item.tab && activeTab
+                  ? item.tab === activeTab
+                  : item.exact
+                  ? pathname === item.href
+                  : pathname === item.href || (item.href !== '/employer' && pathname.startsWith(item.href));
 
                 if (item.tab && onTabChange) {
                   return (
@@ -135,26 +252,23 @@ export default function AppShell({ children, userRole, userName, activeTab, onTa
                       type="button"
                       onClick={() => {
                         onTabChange(item.tab);
-                        setSidebarOpen(false);
+                        setMobileMenuOpen(false);
                       }}
-                      className={`w-full text-left flex items-center justify-between px-5 py-3 text-xs font-medium transition-colors cursor-pointer border-l-4 ${
-                        isActive 
-                          ? 'bg-neutral-900 text-white border-neutral-900 font-semibold' 
-                          : 'border-transparent text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50'
+                      className={`w-full text-left flex items-center justify-between p-2.5 text-xs font-semibold uppercase tracking-wider ${
+                        isActive
+                          ? 'bg-neutral-900 text-white'
+                          : 'text-neutral-700 hover:bg-neutral-100'
                       }`}
                     >
-                      <div className="flex items-center gap-3">
-                        <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-neutral-500'}`} />
+                      <div className="flex items-center gap-2.5">
+                        <Icon className="w-4 h-4" />
                         <span>{item.name}</span>
-                        {typeof item.badge === 'number' && item.badge > 0 && (
-                          <span className={`text-[11px] font-mono font-medium ${
-                            isActive ? 'text-neutral-300' : 'text-neutral-400'
-                          }`}>
-                            {item.badge}
-                          </span>
-                        )}
                       </div>
-                      <ChevronRight className={`w-3.5 h-3.5 ${isActive ? 'opacity-80 text-white' : 'opacity-30'}`} />
+                      {typeof item.badge === 'number' && item.badge > 0 && (
+                        <span className="px-1.5 py-0.2 bg-amber-500 text-white font-mono text-[10px] font-bold">
+                          {item.badge}
+                        </span>
+                      )}
                     </button>
                   );
                 }
@@ -163,49 +277,56 @@ export default function AppShell({ children, userRole, userName, activeTab, onTa
                   <Link
                     key={item.href}
                     href={item.href}
-                    onClick={() => setSidebarOpen(false)}
-                    className={`w-full flex items-center justify-between px-5 py-3 text-xs font-medium transition-colors border-l-4 ${
-                      isActive 
-                        ? 'bg-neutral-900 text-white border-neutral-900 font-semibold' 
-                        : 'border-transparent text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50'
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={`flex items-center justify-between p-2.5 text-xs font-semibold uppercase tracking-wider ${
+                      isActive
+                        ? 'bg-neutral-900 text-white'
+                        : 'text-neutral-700 hover:bg-neutral-100'
                     }`}
                   >
-                    <div className="flex items-center gap-3">
-                      <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-neutral-500'}`} />
+                    <div className="flex items-center gap-2.5">
+                      <Icon className="w-4 h-4" />
                       <span>{item.name}</span>
-                      {typeof item.badge === 'number' && item.badge > 0 && (
-                        <span className={`text-[11px] font-mono font-medium ${
-                          isActive ? 'text-neutral-300' : 'text-neutral-400'
-                        }`}>
-                          {item.badge}
-                        </span>
-                      )}
                     </div>
-                    <ChevronRight className={`w-3.5 h-3.5 ${isActive ? 'opacity-80 text-white' : 'opacity-30'}`} />
+                    {typeof item.badge === 'number' && item.badge > 0 && (
+                      <span className="px-1.5 py-0.2 bg-amber-500 text-white font-mono text-[10px] font-bold">
+                        {item.badge}
+                      </span>
+                    )}
                   </Link>
                 );
               })}
-            </nav>
-          </div>
-
-          <div className="p-4 border-t border-neutral-100 bg-neutral-50/50 text-[11px] text-neutral-500">
-            <div className="flex items-center gap-2 font-semibold text-neutral-800 mb-1">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>
-              <span>{userRole === 'SUPERADMIN' ? 'Otoritas Superadmin' : 'Sistem Aktif'}</span>
             </div>
-            <p className="text-[11px] leading-relaxed text-neutral-500">
-              {userRole === 'SUPERADMIN' 
-                ? 'Tata Kelola Master Data & Standarisasi Ekosistem' 
-                : 'Dinas Tenaga Kerja & Transmigrasi Kab. Mimika'}
-            </p>
           </div>
-        </aside>
+        )}
+      </header>
 
-        {/* Konten Utama */}
-        <main className="flex-1 overflow-y-auto min-h-0 p-4 sm:p-6 lg:p-8">
-          {children}
-        </main>
-      </div>
+      {/* ========================================================================= */}
+      {/* 2. KONTEN UTAMA LEGA (FULL-WIDTH HORIZONTAL VIEWPORT)                      */}
+      {/* ========================================================================= */}
+      <main className="flex-1 w-full max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
+        {children}
+      </main>
+
+      {/* ========================================================================= */}
+      {/* 3. FOOTER RESMI (FLAT SWISS STYLE)                                        */}
+      {/* ========================================================================= */}
+      <footer className="bg-white border-t border-neutral-300 py-6 text-[11px] text-neutral-500">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-neutral-900 uppercase tracking-wider">
+              MIMIKA TALENTA
+            </span>
+            <span>&bull;</span>
+            <span>Platform Ketenagakerjaan Daerah Kabupaten Mimika</span>
+          </div>
+          <div className="flex items-center gap-4 font-medium">
+            <span>Dinas Tenaga Kerja &amp; Transmigrasi Kab. Mimika</span>
+            <span>&bull;</span>
+            <span>Permenaker 18/2024 Compliant</span>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { apiFetch } from '@/lib/api';
 import AppShell from '@/components/layout/AppShell';
+import { AlertModal, useAlertModal } from '@/components/AlertModal';
 import { 
   ArrowLeft, 
   Lock, 
@@ -25,6 +26,7 @@ export default function TrainingLearnPage() {
   const params = useParams();
   const router = useRouter();
   const programId = params.id as string;
+  const { alertProps, showAlert } = useAlertModal();
 
   const [profile, setProfile] = useState<any>(null);
   const [enrollment, setEnrollment] = useState<any>(null);
@@ -109,7 +111,13 @@ export default function TrainingLearnPage() {
 
     setCompleting(false);
     if (res.status === 'success') {
-      setMessage(`Sesi ${sessionData.sessionOrder} berhasil diselesaikan!`);
+      const successText = `Sesi ${sessionData.sessionOrder} berhasil diselesaikan!`;
+      setMessage(successText);
+      showAlert(
+        'success',
+        'Sesi Berhasil Diselesaikan!',
+        `Selamat! Anda telah menyelesaikan materi Sesi ${sessionData.sessionOrder}. Progres Anda tersimpan di sistem LMS daerah.`,
+      );
       // Muat ulang data enrollment
       const enrollRes = await apiFetch('/trainings/my/enrollments');
       if (enrollRes.status === 'success') {
@@ -123,7 +131,9 @@ export default function TrainingLearnPage() {
         }
       }
     } else {
-      setError(res.message || 'Gagal menyelesaikan sesi.');
+      const errMsg = res.message || 'Gagal menyelesaikan sesi.';
+      setError(errMsg);
+      showAlert('error', 'Gagal Menyelesaikan Sesi', errMsg);
     }
   };
 
@@ -140,13 +150,29 @@ export default function TrainingLearnPage() {
     setSubmittingQuiz(false);
     setQuizResult(res);
 
-    if (res.status === 'success' && res.isPassed) {
-      // Muat ulang data enrollment
-      const enrollRes = await apiFetch('/trainings/my/enrollments');
-      if (enrollRes.status === 'success') {
-        const updated = (enrollRes.data || []).find((e: any) => e.programId === programId);
-        setEnrollment(updated);
+    if (res.status === 'success') {
+      if (res.isPassed) {
+        showAlert(
+          'success',
+          'Selamat, Anda Lulus Evaluasi!',
+          `Skor Anda: ${res.score}%. Anda telah memenuhi standar kompetensi untuk sesi pembelajaran ini!`,
+        );
+        // Muat ulang data enrollment
+        const enrollRes = await apiFetch('/trainings/my/enrollments');
+        if (enrollRes.status === 'success') {
+          const updated = (enrollRes.data || []).find((e: any) => e.programId === programId);
+          setEnrollment(updated);
+        }
+      } else {
+        showAlert(
+          'warning',
+          'Nilai Belum Memenuhi Syarat',
+          `Skor Anda: ${res.score || 0}%. Belum mencapai standar kelulusan. Silakan ulas kembali materi dan coba lagi.`,
+          'Coba Lagi',
+        );
       }
+    } else {
+      showAlert('error', 'Evaluasi Gagal', res.message || 'Gagal mengirimkan jawaban evaluasi.');
     }
   };
 
@@ -550,6 +576,7 @@ export default function TrainingLearnPage() {
           </div>
         </div>
       </div>
+      <AlertModal {...alertProps} />
     </AppShell>
   );
 }

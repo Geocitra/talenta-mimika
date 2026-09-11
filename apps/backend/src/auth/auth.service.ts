@@ -13,6 +13,7 @@ import { OtpService } from '../otp/otp.service';
 import { JwtService } from '@nestjs/jwt';
 import { RegisterTalentDto } from './dto/register-talent.dto';
 import { RegisterEmployerDto } from './dto/register-employer.dto';
+import { RegisterTrainingProviderDto } from './dto/register-training-provider.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { LoginPasswordDto } from './dto/login-password.dto';
 import { Role, OtpPurpose, VerificationStatus, type User } from '@prisma/client';
@@ -103,6 +104,49 @@ export class AuthService {
     }
   }
 
+  async registerTrainingProvider(dto: RegisterTrainingProviderDto) {
+    const existingUser = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    if (existingUser) throw new ConflictException('Alamat email sudah terdaftar.');
+
+    const passwordHash = dto.password ? await this.hashService.hashPassword(dto.password) : null;
+
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        const newUser = await tx.user.create({
+          data: { email: dto.email, passwordHash, role: Role.TRAINING_PROVIDER, isVerified: false },
+        });
+
+        await tx.trainingProvider.create({
+          data: {
+            id: newUser.id,
+            institutionName: dto.institutionName,
+            institutionType: dto.institutionType || 'LPK_SWASTA',
+            vinNumber: dto.vinNumber,
+            bnspLicenseNumber: dto.bnspLicenseNumber,
+            picName: dto.picName,
+            picRole: dto.picRole,
+            picPhone: dto.picPhone,
+            picEmail: dto.email,
+            address: dto.address,
+            locationLat: dto.locationLat,
+            locationLng: dto.locationLng,
+          },
+        });
+      });
+
+      const otpResult = await this.otpService.generateAndSendOtp(dto.email, OtpPurpose.REGISTRATION);
+
+      return {
+        status: 'success',
+        message: 'Pendaftaran lembaga pelatihan berhasil. Silakan verifikasi email Anda.',
+        data: { email: dto.email, role: Role.TRAINING_PROVIDER, cooldownSeconds: otpResult.cooldownSeconds },
+      };
+    } catch (error) {
+      if (error instanceof ConflictException) throw error;
+      throw new InternalServerErrorException('Terjadi kesalahan pendaftaran.');
+    }
+  }
+
   // ============================================================
   // USE CASE 3: VERIFIKASI OTP & LOGIN SESI
   // ============================================================
@@ -113,7 +157,7 @@ export class AuthService {
     // 2. Ambil data Pengguna
     const user = await this.prisma.user.findUnique({
       where: { email: dto.email },
-      include: { talent: true, employer: true },
+      include: { talent: true, employer: true, trainingProvider: true },
     });
 
     if (!user) {
@@ -138,7 +182,7 @@ export class AuthService {
         id: user.id,
         email: user.email,
         role: user.role,
-        profile: user.talent || user.employer,
+        profile: user.talent || user.employer || user.trainingProvider,
       },
     };
   }
@@ -216,7 +260,7 @@ export class AuthService {
         id: user.id,
         email: user.email,
         role: user.role,
-        profile: user.talent || user.employer,
+        profile: user.talent || user.employer || user.trainingProvider,
       },
     };
   }
@@ -246,7 +290,7 @@ export class AuthService {
     if (isEmail) {
       return this.prisma.user.findUnique({
         where: { email: identifier },
-        include: { talent: true, employer: true },
+        include: { talent: true, employer: true, trainingProvider: true },
       });
     }
 
@@ -255,7 +299,7 @@ export class AuthService {
       where: { nik: identifier },
       include: {
         user: {
-          include: { talent: true, employer: true },
+          include: { talent: true, employer: true, trainingProvider: true },
         },
       },
     });

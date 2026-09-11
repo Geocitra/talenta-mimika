@@ -187,8 +187,21 @@ export function PreFlightReviewModal({
               {data.skills && data.skills.length > 0 ? (
                 <div className="flex flex-wrap gap-1">
                   {data.skills.map((s, idx) => (
-                    <span key={idx} className="px-1.5 py-0.5 bg-neutral-200 text-neutral-800 text-[10px] font-medium border border-neutral-300">
-                      {s.name} ({s.level})
+                    <span
+                      key={idx}
+                      className={`inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium border ${
+                        s.isLmsVerified
+                          ? 'bg-emerald-50 text-emerald-900 border-emerald-300 font-bold'
+                          : 'bg-neutral-200 text-neutral-800 border-neutral-300'
+                      }`}
+                    >
+                      {s.isLmsVerified && <ShieldCheck className="w-3 h-3 text-emerald-600 shrink-0" />}
+                      <span>{s.name} ({s.level})</span>
+                      {s.isLmsVerified && (
+                        <span className="text-[8px] bg-emerald-700 text-white px-1 py-0.2 uppercase font-mono tracking-wider">
+                          LMS
+                        </span>
+                      )}
                     </span>
                   ))}
                 </div>

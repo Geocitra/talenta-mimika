@@ -23,6 +23,7 @@ export async function apiFetch<T = any>(
     if (!res.ok) {
       return {
         status: 'fail',
+        statusCode: res.status,
         message: data.message || 'Terjadi kesalahan sistem',
         errorCode: data.errorCode,
         data: data.data,

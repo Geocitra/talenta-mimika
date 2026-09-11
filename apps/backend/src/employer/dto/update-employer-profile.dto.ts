@@ -1,4 +1,5 @@
-import { IsInt, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsEnum, IsInt, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
+import { CompanySize } from '@prisma/client';
 
 export class UpdateEmployerProfileDto {
   @IsOptional()
@@ -7,7 +8,15 @@ export class UpdateEmployerProfileDto {
 
   @IsOptional()
   @IsString()
+  brandName?: string;
+
+  @IsOptional()
+  @IsString()
   industrySector?: string;
+
+  @IsOptional()
+  @IsEnum(CompanySize, { message: 'Skala perusahaan tidak valid.' })
+  companySize?: CompanySize;
 
   @IsOptional()
   @IsInt()
@@ -33,4 +42,37 @@ export class UpdateEmployerProfileDto {
   @IsOptional()
   @IsString()
   companyBio?: string;
+
+  @IsOptional()
+  @IsString()
+  websiteUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  npwpNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  logoUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  nibDocUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  picName?: string;
+
+  @IsOptional()
+  @IsString()
+  picRole?: string;
+
+  @IsOptional()
+  @IsString()
+  picPhone?: string;
+
+  @IsOptional()
+  @IsString()
+  picEmail?: string;
 }
+

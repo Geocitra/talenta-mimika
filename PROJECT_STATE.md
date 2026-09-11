@@ -26,11 +26,18 @@ Seluruh diagram usang telah dipindahkan ke folder `/archive/`. Arsitektur resmi 
   └── Micro 1.4: Job Vacancy Publishing & Fuzzy     ──> LULUS (test_job_vacancy.ps1)
 
 [MODUL 2: TALENT MATCHING & SOURCING ENGINE] ────────> STATUS: 100% COMPLETE (TERUJI)
-  ├── Micro 2.1: Multi-Factor AI Scoring Engine     ──> LULUS (test_matching_engine.ps1)
-  │              (Skills 40%, Exp/Fuzzy 30%, 
-  │               Social DNA 20%, GIS 10%)
-  ├── Micro 2.2: Employer Candidate Discovery UI    ──> LULUS (Next.js 9 Routes, Clean Build)
-  └── Micro 2.3: Approach Action & Hand-off         ──> LULUS (test_approach_action.ps1 & Browser E2E)
+  ├── Micro 2.1: Two-Sided AI Matchmaker Engine     ──> LULUS (test_matching_engine.ps1 & test_matchmaker_flow.ps1)
+  │              • Formula 4-Vektor: Skill 35%, Exp 30%, Edu 20%, DNA 15%
+  │              • Afirmasi Fuzzy Vokasi (SMK Jam Terbang Tinggi = 90% Edukasi)
+  │              • Talent Availability Sovereignty (Anti-Locking: isAvailable Tetap Aktif)
+  │              • Kompensasi Fleksibel/Opsional (Kompetitif / Negosiasi)
+  ├── Micro 2.2: Employer Candidate Discovery UI    ──> LULUS (Next.js 16 Routes, 4-Vector Breakdown Grid)
+  ├── Micro 2.3: Approach Action & Hand-off         ──> LULUS (test_approach_action.ps1 & Browser E2E)
+  ├── Micro 2.4: Vacancy Lifecycle & TTL Engine     ──> LULUS (test_matchmaker_lifecycle.ps1 8/8)
+  │              • Masa Tayang Terbatas 14/30 Hari (Default TTL) & Auto-Expiration
+  │              • Permenaker 18/2024 Outcome Gatekeeper (1-Klik Resolusi Hasil Rekrutmen)
+  │              • 4 Outcome Action: HIRED_INTERNAL, HIRED_EXTERNAL, CANCELLED, EXTEND_TTL
+  └── Micro 2.5: Swiss-Style Architectural Top Nav  ──> LULUS (Zero-Sidebar, Fluid Full-Width max-w-7xl)
 
 [MODUL 3: SKILL & TRAINING UPSKILLING ENGINE] ───────> STATUS: 100% COMPLETE (TERUJI)
   ├── Micro 3.1 (1.3.1): Skema Prisma & Migrasi DB LMS ──> LULUS (Migration 20260907043843)
@@ -42,10 +49,28 @@ Seluruh diagram usang telah dipindahkan ke folder `/archive/`. Arsitektur resmi 
 [MODUL 4: EXECUTIVE COMMAND CENTER & REGIONAL ANALYTICS] ──> STATUS: 100% COMPLETE (TERUJI)
   ├── Micro 4.1 (1.4.1): Backend Analytics Engine & API  ──> LULUS (test_command_center.ps1 3/3)
   └── Micro 4.2 (1.4.2): Frontend Visual Command Center   ──> LULUS (Next.js 11 Routes & Browser E2E)
-                         (Executive Dashboard Bupati & Kadisnaker)
+[MODUL 1.4: SKILLHUB MIMIKA (LMS RECONSTRUCTION & VOCATIONAL MARKETPLACE)] ──> STATUS: 100% COMPLETE (TERUJI)
+  ├── Micro 1.4.1: Pondasi Database & Onboarding Provider (Tier-1 Audit) ──> LULUS (test_provider_onboarding.ps1)
+  │                • Gerbang Registrasi 3 Pintu & Profil Legalitas VIN/BNSP
+  │                • Verifikasi Disnakertrans Tier-1 (PENDING -> APPROVED / REJECTED)
+  ├── Micro 1.4.2: Studio Program & Kurasi Kurikulum Tier-2 Disnaker    ──> LULUS (test_program_studio_curation.ps1)
+  │                • Pembuatan Kurikulum & Pokok Bahasan Silabus
+  │                • Pembukaan Gelombang Batch Cohort (Boarding/MTU, Uang Saku, Kuota Kursi)
+  │                • Meja Kurasi Tier-2 Disnaker (APPROVED -> PUBLISHED)
+  ├── Micro 1.4.3: Mesin Pendaftaran, WA Hand-Off & Bulk Auto-Skill      ──> LULUS (test_bulk_graduation_injection.ps1)
+  │                • Pendaftaran Batch Cohort & Validasi Kuota Transaksional
+  │                • WhatsApp Outreach Engine (Strict Hand-off Paradigm)
+  │                • Meja Kelulusan Massal & Auto-Numbering Sertifikat Resmi
+  │                • The Closed-Loop Synergy: Atomic Auto-Skill Injection ke Profil & Radar AI
+  └── Micro 1.4.4: Antarmuka Visual Skillhub Marketplace (Next.js 16)    ──> LULUS (Turbopack Build 20/20 Routes)
+                   • Header Ikon 10 Rumpun Kejuruan (Gaya Kemnaker RI)
+                   • Sidebar Filter Multi-Kriteria (Delivery, Metode, Biaya, Sertifikat)
+                   • Swiss-Style Card Grid Program Transparan
+                   • Modal Detail Program 4 Tab (Tentang, Penyelenggara, Batch, Dampak AI)
+                   • Modal Pendaftaran & Direct Hand-Off WhatsApp
 
 ========================================================================================
-GRAND STATUS: FASE 1 (MODUL 1 - 4) 100% SELESAI, TERINTEGRASI, DAN TERUJI PENUH! 🏆🔒
+GRAND STATUS: SELURUH FASE 1 (CONNECT & DATA SERVICES) 100% SELESAI & TERVERIFIKASI! 🏆🔒
 ========================================================================================
 ```
 

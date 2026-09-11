@@ -15,6 +15,7 @@ import { CreateTrainingProgramDto } from './dto/create-training-program.dto';
 import { CreateTrainingSessionDto } from './dto/create-training-session.dto';
 import { CreateQuizDto } from './dto/create-quiz.dto';
 import { SubmitQuizAnswerDto } from './dto/submit-quiz.dto';
+import { EnrollBatchDto } from './dto/enroll-batch.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -24,24 +25,31 @@ import { Role } from '@prisma/client';
 export class TrainingController {
   constructor(private readonly trainingService: TrainingService) {}
 
-  // ==================== KANAL DISNAKER ADMIN ====================
+  // ==================== KANAL DISNAKER ADMIN & SUPERADMIN ====================
+  @Get('admin/all')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.DISNAKER_ADMIN, Role.SUPERADMIN)
+  async getAllProgramsAdmin() {
+    return this.trainingService.getAllProgramsAdmin();
+  }
+
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.DISNAKER_ADMIN)
+  @Roles(Role.DISNAKER_ADMIN, Role.SUPERADMIN)
   async createProgram(@Req() req: any, @Body() dto: CreateTrainingProgramDto) {
     return this.trainingService.createProgram(req.user.id, dto);
   }
 
   @Patch(':id/publish')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.DISNAKER_ADMIN)
+  @Roles(Role.DISNAKER_ADMIN, Role.SUPERADMIN)
   async publishProgram(@Param('id', ParseUUIDPipe) id: string) {
     return this.trainingService.publishProgram(id);
   }
 
   @Post(':id/sessions')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.DISNAKER_ADMIN)
+  @Roles(Role.DISNAKER_ADMIN, Role.SUPERADMIN)
   async addSession(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: CreateTrainingSessionDto,
@@ -51,7 +59,7 @@ export class TrainingController {
 
   @Post(':id/quizzes')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.DISNAKER_ADMIN)
+  @Roles(Role.DISNAKER_ADMIN, Role.SUPERADMIN)
   async addQuiz(
     @Param('id', ParseUUIDPipe) targetId: string,
     @Body() dto: CreateQuizDto,
@@ -71,6 +79,18 @@ export class TrainingController {
   @Roles(Role.TALENT)
   async enroll(@Param('id', ParseUUIDPipe) id: string, @Req() req: any) {
     return this.trainingService.enrollProgram(id, req.user.id);
+  }
+
+  @Post(':id/batches/:batchId/enroll')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.TALENT)
+  async enrollBatch(
+    @Param('id', ParseUUIDPipe) programId: string,
+    @Param('batchId', ParseUUIDPipe) batchId: string,
+    @Req() req: any,
+    @Body() dto?: EnrollBatchDto,
+  ) {
+    return this.trainingService.enrollBatch(programId, batchId, req.user.id, dto);
   }
 
   @Get('my/enrollments')

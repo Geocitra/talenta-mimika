@@ -1,4 +1,10 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  ConflictException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { TextSanitizer } from '../common/utils/text-sanitizer.util';
 import { NormalizeMajorResultDto } from '@mimika-talenta/shared-types';
@@ -248,6 +254,186 @@ export class MajorService {
     return {
       status: 'success',
       message: `Usulan jurusan "${suggestion.suggestedName}" ditolak.`,
+    };
+  }
+
+  // ============================================================
+  // 7. SUPERADMIN: LIST MASTER JURUSAN & PRODI (PAGINATED & FILTERED)
+  // ============================================================
+  async getAllMasterMajors(
+    page?: number,
+    limit?: number,
+    q?: string,
+    category?: string,
+  ) {
+    const pageNum = Math.max(1, Number(page) || 1);
+    const limitNum = Math.max(1, Math.min(100, Number(limit) || 15));
+    const skip = (pageNum - 1) * limitNum;
+
+    const whereClause: any = {};
+
+    if (q && q.trim().length > 0) {
+      whereClause.name = {
+        contains: q.trim(),
+        mode: 'insensitive',
+      };
+    }
+
+    if (category && category.trim() !== 'ALL') {
+      whereClause.category = category.trim();
+    }
+
+    const [majors, total] = await Promise.all([
+      this.prisma.masterMajor.findMany({
+        where: whereClause,
+        orderBy: [{ category: 'asc' }, { name: 'asc' }],
+        skip,
+        take: limitNum,
+      }),
+      this.prisma.masterMajor.count({ where: whereClause }),
+    ]);
+
+    return {
+      status: 'success',
+      data: majors,
+      meta: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages: Math.ceil(total / limitNum) || 1,
+      },
+    };
+  }
+
+  // ============================================================
+  // 8. SUPERADMIN: TAMBAH MASTER JURUSAN / PRODI BARU
+  // ============================================================
+  async createMasterMajor(data: { name: string; category: string }) {
+    if (!data.name || !data.name.trim()) {
+      throw new BadRequestException('Nama jurusan / program studi wajib diisi.');
+    }
+    if (!data.category || !data.category.trim()) {
+      throw new BadRequestException('Kategori rumpun keilmuan wajib dipilih.');
+    }
+
+    const formattedName = TextSanitizer.toTitleCase(data.name.trim());
+    const category = data.category.trim();
+
+    // Pengecekan duplikasi secara case-insensitive
+    const existing = await this.prisma.masterMajor.findFirst({
+      where: {
+        name: {
+          equals: formattedName,
+          mode: 'insensitive',
+        },
+      },
+    });
+
+    if (existing) {
+      throw new ConflictException(
+        `Jurusan / Program Studi "${formattedName}" sudah terdaftar di master data.`,
+      );
+    }
+
+    const major = await this.prisma.masterMajor.create({
+      data: {
+        name: formattedName,
+        category,
+      },
+    });
+
+    this.logger.log(
+      `Superadmin menambahkan master jurusan: "${major.name}" (${major.category})`,
+    );
+
+    return {
+      status: 'success',
+      message: `Master jurusan "${major.name}" berhasil ditambahkan.`,
+      data: major,
+    };
+  }
+
+  // ============================================================
+  // 9. SUPERADMIN: PERBARUI MASTER JURUSAN / PRODI
+  // ============================================================
+  async updateMasterMajor(
+    id: string,
+    data: { name?: string; category?: string },
+  ) {
+    const existing = await this.prisma.masterMajor.findUnique({
+      where: { id },
+    });
+
+    if (!existing) {
+      throw new NotFoundException('Master jurusan tidak ditemukan.');
+    }
+
+    const updateData: any = {};
+
+    if (data.name && data.name.trim()) {
+      const formattedName = TextSanitizer.toTitleCase(data.name.trim());
+
+      // Cek apakah nama baru bentrok dengan jurusan lain
+      const duplicate = await this.prisma.masterMajor.findFirst({
+        where: {
+          name: {
+            equals: formattedName,
+            mode: 'insensitive',
+          },
+          NOT: { id },
+        },
+      });
+
+      if (duplicate) {
+        throw new ConflictException(
+          `Nama jurusan "${formattedName}" sudah digunakan oleh data master lain.`,
+        );
+      }
+
+      updateData.name = formattedName;
+    }
+
+    if (data.category && data.category.trim()) {
+      updateData.category = data.category.trim();
+    }
+
+    const updated = await this.prisma.masterMajor.update({
+      where: { id },
+      data: updateData,
+    });
+
+    this.logger.log(
+      `Superadmin memperbarui master jurusan: "${updated.name}" (${updated.category})`,
+    );
+
+    return {
+      status: 'success',
+      message: `Master jurusan "${updated.name}" berhasil diperbarui.`,
+      data: updated,
+    };
+  }
+
+  // ============================================================
+  // 10. SUPERADMIN: HAPUS MASTER JURUSAN / PRODI
+  // ============================================================
+  async deleteMasterMajor(id: string) {
+    const existing = await this.prisma.masterMajor.findUnique({
+      where: { id },
+    });
+
+    if (!existing) {
+      throw new NotFoundException('Master jurusan tidak ditemukan.');
+    }
+
+    await this.prisma.masterMajor.delete({
+      where: { id },
+    });
+
+    this.logger.log(`Superadmin menghapus master jurusan: "${existing.name}"`);
+
+    return {
+      status: 'success',
+      message: `Master jurusan "${existing.name}" berhasil dihapus.`,
     };
   }
 }

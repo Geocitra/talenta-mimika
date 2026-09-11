@@ -26,24 +26,54 @@ import {
   CheckCircle2,
   Check,
   X,
-  Camera
+  Camera,
+  ShieldCheck,
+  Lock,
+  Building2,
+  Phone,
+  MessageCircle,
+  MapPin,
+  Coins,
+  Clock,
+  Users
 } from 'lucide-react';
 import { InstitutionAutocomplete } from '@/components/InstitutionAutocomplete';
 import { MajorCombobox } from '@/components/MajorCombobox';
 import { SkillCombobox } from '@/components/SkillCombobox';
 import { PreFlightReviewModal } from '@/components/PreFlightReviewModal';
+import { AlertModal, useAlertModal } from '@/components/AlertModal';
+
+function formatWhatsAppLink(phone: string | null | undefined, picName: string | null | undefined, vacancyTitle: string, talentName: string) {
+  if (!phone) return '#';
+  let cleaned = phone.replace(/[^0-9]/g, '');
+  if (cleaned.startsWith('0')) {
+    cleaned = '62' + cleaned.slice(1);
+  } else if (!cleaned.startsWith('62')) {
+    cleaned = '62' + cleaned;
+  }
+  const text = `Halo Bapak/Ibu ${picName || 'HRD'}, saya ${talentName} telah menerima Surat Penawaran Kerja Resmi di MIMIKA TALENTA untuk posisi "${vacancyTitle}". Saya bermaksud menindaklanjuti proses ini. Terima kasih.`;
+  return `https://wa.me/${cleaned}?text=${encodeURIComponent(text)}`;
+}
 
 export default function TalentProfilePage() {
   const router = useRouter();
+  const { alertProps, showAlert } = useAlertModal();
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
 
   // Editable States
   const [phone, setPhone] = useState('');
   const [bio, setBio] = useState('');
-  const [skills, setSkills] = useState<{ name: string; level: string }[]>([]);
+  const [skills, setSkills] = useState<{ 
+    name: string; 
+    level: string;
+    isLmsVerified?: boolean;
+    certificateNumber?: string;
+    verifiedAt?: string;
+  }[]>([]);
   const [workExperience, setWorkExperience] = useState<{
     companyName: string;
     position: string;
@@ -136,6 +166,7 @@ export default function TalentProfilePage() {
   const executeSaveProfile = async () => {
     setSaving(true);
     setMessage('');
+    setErrorMessage('');
 
     const payload = {
       phone,
@@ -145,6 +176,7 @@ export default function TalentProfilePage() {
       workExperience,
       education,
       certifications,
+      lastUpdatedAt: profile?.updatedAt,
       socialDna: {
         workPreferences: selectedPreferences,
         organizations,
@@ -163,7 +195,25 @@ export default function TalentProfilePage() {
     setShowReviewModal(false);
     if (res.status === 'success') {
       setProfile(res.data);
-      setMessage('Profil berhasil diverifikasi dan aktif di Mimika Talent Pool!');
+      setMessage('Profil berhasil dimutakhirkan dan disinkronkan ke radar industri Mimika!');
+      setErrorMessage('');
+      showAlert(
+        'success',
+        'Profil Berhasil Disimpan!',
+        'Data profil Anda telah berhasil dimutakhirkan dan disinkronkan ke radar industri ketenagakerjaan daerah Mimika.',
+      );
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else if (res.statusCode === 409 || (res.message && res.message.includes('diperbarui'))) {
+      const warnMsg = 'Data profil Anda telah diperbarui oleh kegiatan lain (misal: kelulusan pelatihan LMS). Halaman telah disegarkan dengan data terbaru.';
+      setErrorMessage(`Sinkronisasi Terdeteksi: ${warnMsg}`);
+      setMessage('');
+      showAlert('warning', 'Sinkronisasi Terdeteksi', warnMsg);
+      await loadProfile();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      const errMsg = res.message || 'Gagal menyimpan profil.';
+      setErrorMessage(errMsg);
+      showAlert('error', 'Gagal Menyimpan Profil', errMsg);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
@@ -191,7 +241,18 @@ export default function TalentProfilePage() {
 
   // Helper Array Modifiers
   const addSkill = () => setSkills([...skills, { name: '', level: 'INTERMEDIATE' }]);
-  const removeSkill = (index: number) => setSkills(skills.filter((_, i) => i !== index));
+  const removeSkill = (index: number) => {
+    const target = skills[index];
+    if (target?.isLmsVerified) {
+      showAlert(
+        'warning',
+        'Keahlian Terverifikasi LMS',
+        'Keahlian resmi yang terverifikasi melalui kelulusan pelatihan LMS Disnakertrans tidak dapat dihapus secara manual.',
+      );
+      return;
+    }
+    setSkills(skills.filter((_, i) => i !== index));
+  };
 
   const addWork = () => setWorkExperience([
     ...workExperience,
@@ -234,12 +295,12 @@ export default function TalentProfilePage() {
     if (!file) return;
 
     if (file.type !== 'application/pdf') {
-      alert('Hanya format dokumen PDF (.pdf) yang diperbolehkan untuk sertifikat & lisensi.');
+      showAlert('warning', 'Format Berkas Tidak Sesuai', 'Hanya format dokumen PDF (.pdf) yang diperbolehkan untuk sertifikat & lisensi.');
       return;
     }
 
     if (file.size > 5 * 1024 * 1024) {
-      alert('Ukuran berkas PDF melebihi batas maksimal 5 MB.');
+      showAlert('warning', 'Ukuran Berkas Terlalu Besar', 'Ukuran berkas PDF melebihi batas maksimal 5 MB.');
       return;
     }
 
@@ -261,8 +322,13 @@ export default function TalentProfilePage() {
       next[index].fileName = res.data.fileName;
       next[index].fileSize = res.data.fileSize;
       setCertifications(next);
+      showAlert(
+        'success',
+        'Sertifikat Berhasil Diunggah!',
+        `Berkas ${res.data.fileName || 'dokumen sertifikat'} berhasil diunggah dan disimpan ke profil Anda.`,
+      );
     } else {
-      alert(res.message || 'Gagal mengunggah file sertifikat. Pastikan file PDF valid.');
+      showAlert('error', 'Gagal Mengunggah Berkas', res.message || 'Gagal mengunggah file sertifikat. Pastikan file PDF valid.');
     }
   };
 
@@ -270,12 +336,12 @@ export default function TalentProfilePage() {
     if (!file) return;
 
     if (!file.type.startsWith('image/')) {
-      alert('Berkas harus berupa foto / gambar (JPG, PNG, atau WEBP).');
+      showAlert('warning', 'Format Berkas Tidak Sesuai', 'Berkas harus berupa foto / gambar (JPG, PNG, atau WEBP).');
       return;
     }
 
     if (file.size > 2 * 1024 * 1024) {
-      alert('Ukuran foto maksimal 2 Megabytes (MB).');
+      showAlert('warning', 'Ukuran Foto Terlalu Besar', 'Ukuran foto maksimal adalah 2 Megabytes (MB).');
       return;
     }
 
@@ -294,8 +360,9 @@ export default function TalentProfilePage() {
     if (res.status === 'success' && res.data) {
       setAvatarUrl(res.data.avatarUrl);
       setProfile((prev: any) => ({ ...prev, avatarUrl: res.data.avatarUrl }));
+      showAlert('success', 'Foto Profil Berhasil Diperbarui!', 'Foto profil terbaru Anda telah berhasil disimpan dan ditampilkan.');
     } else {
-      alert(res.message || 'Gagal mengunggah foto profil.');
+      showAlert('error', 'Gagal Mengunggah Foto', res.message || 'Gagal mengunggah foto profil.');
     }
   };
 
@@ -406,9 +473,9 @@ export default function TalentProfilePage() {
           </div>
 
           <div className="flex items-center justify-between text-[11px] text-neutral-600 mt-2">
-            <span>Data siap dipadankan oleh AI Matching Engine</span>
+            <span>Profil aktif di radar penempatan industri Disnakertrans</span>
             <span className="font-semibold text-neutral-900">
-              {completeness === 100 ? 'Profil Sempurna' : 'Lengkapi data untuk memaksimalkan rekomendasi'}
+              {completeness === 100 ? 'Profil Lengkap' : 'Lengkapi data untuk memaksimalkan rekomendasi'}
             </span>
           </div>
         </div>
@@ -417,6 +484,321 @@ export default function TalentProfilePage() {
           <div className="p-3 bg-green-50 border border-green-300 text-green-800 text-xs flex items-center gap-2">
             <CheckCircle className="w-4 h-4 shrink-0" />
             <span>{message}</span>
+          </div>
+        )}
+
+        {errorMessage && (
+          <div className="p-3 bg-amber-50 border border-amber-400 text-amber-900 text-xs flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0 text-amber-700" />
+            <span>{errorMessage}</span>
+          </div>
+        )}
+
+        {/* ============================================================ */}
+        {/* KARTU TAWARAN KERJA RESMI (MIMIKA TALENTA) - REVERSE RECRUITMENT */}
+        {/* ============================================================ */}
+        {Array.isArray(profile?.approaches) && profile.approaches.length > 0 && (
+          <div className="space-y-4">
+            <div className="bg-neutral-900 text-white p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-amber-400" />
+                  <span className="text-xs font-bold uppercase tracking-wider text-amber-400">
+                    Penawaran Kerja & Penjajakan Masuk
+                  </span>
+                </div>
+                <h2 className="text-base font-bold uppercase tracking-tight text-white mt-0.5">
+                  Tawaran Langsung dari Industri Terverifikasi
+                </h2>
+                <p className="text-[11px] text-neutral-300">
+                  Perusahaan telah meninjau kompetensi Anda dan mengajukan penawaran langsung secara proaktif.
+                </p>
+              </div>
+              <div className="text-right shrink-0">
+                <span className="px-2.5 py-1 bg-white/10 border border-white/20 text-white text-xs font-mono font-bold">
+                  {profile.approaches.length} Penawaran
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-6">
+              {profile.approaches.map((app: any) => {
+                const vac = app.vacancy;
+                const emp = vac?.employer;
+                const isInternship = vac?.opportunityType === 'INTERNSHIP';
+                const waLink = formatWhatsAppLink(emp?.picPhone, emp?.picName, vac?.title || 'Posisi', profile?.fullName || 'Talenta');
+                const status = app.status || 'APPROACHED';
+
+                return (
+                  <div key={app.id} className="bg-white border-2 border-neutral-900 divide-y divide-neutral-200">
+                    {/* Header Perusahaan: Logo, Nama, NIB, Badge Verifikasi */}
+                    <div className="p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-neutral-50/70">
+                      <div className="flex items-start gap-3.5">
+                        <div className="w-12 h-12 bg-white border border-neutral-300 shrink-0 overflow-hidden flex items-center justify-center">
+                          {emp?.logoUrl ? (
+                            <img
+                              src={getFullMediaUrl(emp.logoUrl) || ''}
+                              alt={emp.companyName || 'Perusahaan'}
+                              className="w-full h-full object-contain p-1"
+                              onError={(e) => {
+                                (e.currentTarget as HTMLElement).style.display = 'none';
+                              }}
+                            />
+                          ) : (
+                            <Building2 className="w-6 h-6 text-neutral-400" />
+                          )}
+                        </div>
+
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="text-base font-bold uppercase text-neutral-900">
+                              {emp?.companyName || 'Perusahaan Terverifikasi'}
+                            </h3>
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-900 border border-emerald-300 px-2 py-0.5">
+                              <ShieldCheck className="w-3 h-3 text-emerald-700" />
+                              Terverifikasi Disnakertrans
+                            </span>
+                          </div>
+                          <p className="text-xs text-neutral-600 mt-0.5">
+                            NIB: <span className="font-mono font-semibold text-neutral-900">{emp?.nib || '-'}</span> &bull; Bidang: <span className="font-semibold text-neutral-800">{emp?.industrySector || 'Industri Terbuka'}</span>
+                          </p>
+                          <p className="text-[11px] text-neutral-500">
+                            {emp?.address || 'Kabupaten Mimika, Papua Tengah'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="text-right shrink-0 w-full sm:w-auto flex sm:flex-col justify-between items-end border-t sm:border-t-0 border-neutral-200 pt-2 sm:pt-0">
+                        <div className="mb-1">
+                          {status === 'HIRED' ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-700 text-white text-[10px] font-bold uppercase tracking-wider">
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              Resmi Diterima Bekerja
+                            </span>
+                          ) : status === 'REJECTED' ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-neutral-500 text-white text-[10px] font-bold uppercase tracking-wider">
+                              <X className="w-3.5 h-3.5" />
+                              Penjajakan Selesai
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-500 text-white text-[10px] font-bold uppercase tracking-wider">
+                              <Clock className="w-3.5 h-3.5" />
+                              Tahap Penjajakan / Wawancara
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">
+                          Kesesuaian Kualifikasi
+                        </div>
+                        <div className="text-2xl font-bold font-mono text-emerald-700">
+                          {Math.round(Number(app.aiMatchScore || 90))}%
+                        </div>
+                        <div className="text-[10px] text-neutral-400">
+                          {new Date(app.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Banner Status Penjajakan */}
+                    <div className="px-5 py-3 border-b border-neutral-200">
+                      {status === 'HIRED' ? (
+                        <div className="p-3 bg-emerald-50 border-l-4 border-emerald-600 text-emerald-950 text-xs">
+                          <div className="font-bold uppercase tracking-wider text-emerald-900 mb-0.5 flex items-center gap-1.5">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-700" />
+                            Status: Resmi Diterima & Terikat Kontrak Aktif
+                          </div>
+                          <p className="text-[11px] text-emerald-800 leading-relaxed">
+                            Selamat! Perusahaan telah resmi merekrut Anda untuk posisi ini. Status profil Anda kini terikat kontrak kerja aktif dan diproteksi di pangkalan data ketenagakerjaan daerah Mimika.
+                          </p>
+                        </div>
+                      ) : status === 'REJECTED' ? (
+                        <div className="p-3 bg-neutral-100 border-l-4 border-neutral-400 text-neutral-800 text-xs">
+                          <div className="font-bold uppercase tracking-wider text-neutral-700 mb-0.5 flex items-center gap-1.5">
+                            <X className="w-4 h-4 text-neutral-500" />
+                            Status: Penjajakan Selesai
+                          </div>
+                          <p className="text-[11px] text-neutral-600 leading-relaxed">
+                            Proses penjajakan untuk posisi ini telah selesai. Profil Anda tetap aktif di bursa talenta daerah Mimika dan siap menerima tawaran dari industri lainnya.
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="p-3 bg-amber-50 border-l-4 border-amber-500 text-amber-950 text-xs">
+                          <div className="font-bold uppercase tracking-wider text-amber-900 mb-0.5 flex items-center gap-1.5">
+                            <Clock className="w-4 h-4 text-amber-700" />
+                            Status: Dalam Tahap Penjajakan & Wawancara
+                          </div>
+                          <p className="text-[11px] text-amber-800 leading-relaxed">
+                            Perusahaan telah membuka kontak Anda dan sedang/akan menghubungi Anda via WhatsApp atau Telepon untuk tahapan wawancara. Anda juga dapat berinisiatif menghubungi PIC HRD di bawah ini.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Rincian Posisi & Kompensasi */}
+                    <div className="p-5 space-y-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider border ${
+                              isInternship
+                                ? 'bg-purple-50 text-purple-900 border-purple-300'
+                                : 'bg-blue-50 text-blue-900 border-blue-300'
+                            }`}>
+                              {isInternship ? 'Pemagangan Vokasi' : 'Pekerjaan Reguler'}
+                            </span>
+                            <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-neutral-100 text-neutral-800 border border-neutral-300">
+                              Kebutuhan: {vac?.quota || 1} Orang
+                            </span>
+                          </div>
+                          <h4 className="text-lg font-bold uppercase text-neutral-900">
+                            Posisi Ditawarkan: {vac?.title}
+                          </h4>
+                        </div>
+
+                        {/* Kompensasi Box */}
+                        <div className="p-3 bg-neutral-100 border border-neutral-300 text-right sm:min-w-[240px]">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-600 block">
+                            {isInternship ? 'Uang Saku Pemagangan' : 'Estimasi Kompensasi Bulanan'}
+                          </span>
+                          <span className="text-base font-bold font-mono text-neutral-900 block">
+                            {isInternship
+                              ? (vac?.stipendAmount ? `Rp ${Number(vac.stipendAmount).toLocaleString('id-ID')} / bulan` : 'Uang Saku Standar Disnakertrans')
+                              : (vac?.salaryMin && vac?.salaryMax
+                                  ? `Rp ${Number(vac.salaryMin).toLocaleString('id-ID')} - Rp ${Number(vac.salaryMax).toLocaleString('id-ID')}`
+                                  : 'Kompetitif / Sesuai Pengalaman (Negosiasi)')}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Info Penempatan & Jadwal */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs p-3 bg-neutral-50 border border-neutral-200">
+                        <div>
+                          <span className="text-[10px] font-bold uppercase text-neutral-500 block">
+                            Penempatan & Zona Operasional:
+                          </span>
+                          <span className="font-semibold text-neutral-800">
+                            {vac?.workZone ? vac.workZone.replace(/_/g, ' ') : 'TIMIKA KOTA'}, Kab. Mimika
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] font-bold uppercase text-neutral-500 block">
+                            Pola & Jadwal Kerja:
+                          </span>
+                          <span className="font-semibold text-neutral-800">
+                            {vac?.workSchedule ? vac.workSchedule.replace(/_/g, ' ') : 'NORMAL DAY'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Fasilitas & Kesejahteraan Checklist */}
+                      {Array.isArray(vac?.benefits) && vac.benefits.length > 0 && (
+                        <div className="space-y-2">
+                          <span className="text-xs font-bold uppercase tracking-wider text-neutral-700 block">
+                            Fasilitas & Kesejahteraan yang Dijamin:
+                          </span>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+                            {vac.benefits.map((ben: string, bIdx: number) => (
+                              <div key={bIdx} className="flex items-center gap-2 p-2 bg-neutral-50 border border-neutral-200">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                <span className="text-neutral-800 font-medium">{ben}</span>
+                              </div>
+                            ))}
+                            {vac?.hasAbsorptionOpportunity && (
+                              <div className="flex items-center gap-2 p-2 bg-emerald-50 border border-emerald-300 text-emerald-900">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                                <span className="font-bold text-xs">Peluang Rekrutmen Tetap</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Sarana & Inventaris Kerja Disediakan Perusahaan */}
+                      {Array.isArray(vac?.workTools) && vac.workTools.length > 0 && (
+                        <div className="space-y-2">
+                          <span className="text-xs font-bold uppercase tracking-wider text-amber-900 flex items-center gap-1.5">
+                            <Wrench className="w-3.5 h-3.5 text-amber-700" />
+                            Sarana, Alat & Inventaris Kerja Disediakan Perusahaan:
+                          </span>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+                            {vac.workTools.map((tool: string, tIdx: number) => (
+                              <div key={tIdx} className="flex items-center gap-2 p-2 bg-amber-50/70 border border-amber-300 text-amber-950 font-medium">
+                                <Wrench className="w-3 h-3 text-amber-700 shrink-0" />
+                                <span>{tool}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Mentor jika Pemagangan */}
+                      {isInternship && vac?.mentorName && (
+                        <div className="p-2.5 bg-purple-50 border border-purple-200 text-xs text-purple-900">
+                          <span className="font-bold uppercase text-[10px] tracking-wider block">Pembimbing Teknis Lapangan:</span>
+                          <span>{vac.mentorName} ({vac.mentorRole || 'Mentor Senior Operasional'})</span>
+                        </div>
+                      )}
+
+                      {/* Kontak Resmi HRD & CTA Action */}
+                      <div className="p-4 bg-neutral-50 border border-neutral-300 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                        <div>
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500 block">
+                            Kontak Resmi Person in Charge (PIC) HRD:
+                          </span>
+                          <div className="text-sm font-bold text-neutral-900 mt-0.5">
+                            {emp?.picName || 'Tim Rekrutmen Perusahaan'}
+                          </div>
+                          <div className="text-xs text-neutral-600">
+                            Dept. Human Capital &bull; Telp/WA: <span className="font-mono font-semibold text-neutral-900">{emp?.picPhone || '-'}</span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 w-full sm:w-auto">
+                          {emp?.picPhone && status !== 'REJECTED' && (
+                            <>
+                              <a
+                                href={waLink}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold uppercase tracking-wider transition-colors flex-1 sm:flex-none text-center"
+                              >
+                                <MessageCircle className="w-4 h-4" />
+                                <span>{status === 'HIRED' ? 'Hubungi HRD Perusahaan' : 'Konfirmasi via WhatsApp'}</span>
+                              </a>
+                              <a
+                                href={`tel:${emp.picPhone}`}
+                                className="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 bg-white border border-neutral-300 hover:bg-neutral-100 text-neutral-800 text-xs font-bold uppercase tracking-wider transition-colors"
+                                title="Telepon Langsung"
+                              >
+                                <Phone className="w-3.5 h-3.5" />
+                              </a>
+                            </>
+                          )}
+                          {status === 'REJECTED' && (
+                            <span className="text-xs text-neutral-500 italic px-3 py-2 bg-neutral-100 border border-neutral-200">
+                              Penjajakan telah ditutup
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Catatan Disnakertrans Mimika */}
+                      <div className="p-3 bg-amber-50/70 border border-amber-300 text-amber-950 text-xs flex items-start gap-2.5">
+                        <ShieldCheck className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                        <div>
+                          <span className="font-bold uppercase tracking-wider text-[10px] block mb-0.5 text-amber-900">
+                            Jaminan Pengawasan Disnakertrans Kabupaten Mimika:
+                          </span>
+                          <p className="text-[11px] leading-relaxed text-amber-900">
+                            Tawaran ini resmi dan diawasi langsung oleh Dinas Tenaga Kerja Kabupaten Mimika sesuai <strong>Perda No. 7 Tahun 2024</strong> tentang Perlindungan dan Penempatan Tenaga Kerja Lokal. Seluruh proses penempatan dan seleksi <strong>TIDAK DIPUNGUT BIAYA APAPUN (GRATIS)</strong>. Laporkan jika ada pihak yang meminta imbalan.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
 
@@ -730,39 +1112,82 @@ export default function TalentProfilePage() {
             ) : (
               <div className="space-y-3">
                 {skills.map((skill, idx) => (
-                  <div key={idx} className="flex gap-2 items-center bg-white p-2.5 border border-neutral-200">
-                    <div className="flex-1">
-                      <SkillCombobox
-                        value={skill.name}
-                        onChange={(name) => {
+                  <div 
+                    key={idx} 
+                    className={`p-3 border transition-colors ${
+                      skill.isLmsVerified 
+                        ? 'bg-emerald-50/50 border-emerald-300 shadow-2xs' 
+                        : 'bg-white border-neutral-200'
+                    }`}
+                  >
+                    {skill.isLmsVerified && (
+                      <div className="flex items-center justify-between pb-2 mb-2 border-b border-emerald-200 text-[11px]">
+                        <span className="inline-flex items-center gap-1.5 font-bold uppercase tracking-wider text-emerald-800">
+                          <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                          Terverifikasi Pelatihan Disnakertrans Mimika (BNSP)
+                        </span>
+                        {skill.certificateNumber && (
+                          <span className="font-mono text-[10px] text-emerald-700 bg-emerald-100 border border-emerald-300 px-1.5 py-0.5">
+                            Sertifikat: {skill.certificateNumber}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    <div className="flex gap-2 items-center">
+                      <div className="flex-1">
+                        {skill.isLmsVerified ? (
+                          <div className="w-full border border-emerald-300 bg-emerald-100/50 px-3 py-2 text-xs font-bold text-neutral-900 flex items-center justify-between">
+                            <span>{skill.name}</span>
+                            <span className="text-[10px] font-mono text-emerald-800 uppercase">Terkunci Resmi</span>
+                          </div>
+                        ) : (
+                          <SkillCombobox
+                            value={skill.name}
+                            onChange={(name) => {
+                              const next = [...skills];
+                              next[idx].name = name;
+                              setSkills(next);
+                            }}
+                            placeholder="Ketik keahlian (cth: Fullstack, Las 3G, Operator Excavator, AK3U)..."
+                          />
+                        )}
+                      </div>
+                      <select
+                        value={skill.level}
+                        disabled={skill.isLmsVerified}
+                        onChange={(e) => {
                           const next = [...skills];
-                          next[idx].name = name;
+                          next[idx].level = e.target.value;
                           setSkills(next);
                         }}
-                        placeholder="Ketik keahlian (cth: Fullstack, Las 3G, Operator Excavator, AK3U)..."
-                      />
+                        className={`border px-3 py-2 text-xs focus:outline-none shrink-0 font-medium ${
+                          skill.isLmsVerified 
+                            ? 'bg-emerald-100/70 border-emerald-300 text-emerald-900 cursor-not-allowed' 
+                            : 'border-neutral-300 focus:border-neutral-900 bg-white'
+                        }`}
+                      >
+                        <option value="BEGINNER">Pemula (Dasar)</option>
+                        <option value="INTERMEDIATE">Menengah (Standar)</option>
+                        <option value="EXPERT">Mahir (Advanced)</option>
+                      </select>
+                      {skill.isLmsVerified ? (
+                        <div 
+                          className="p-2 border border-emerald-300 text-emerald-700 bg-emerald-100 shrink-0 flex items-center justify-center cursor-not-allowed"
+                          title="Keahlian ini terverifikasi resmi oleh pelatihan LMS Disnakertrans dan terkunci permanen."
+                        >
+                          <Lock className="w-4 h-4" />
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => removeSkill(idx)}
+                          className="p-2 border border-neutral-300 text-neutral-600 hover:text-red-700 hover:border-red-300 bg-white shrink-0 cursor-pointer"
+                          title="Hapus keahlian ini"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
-                    <select
-                      value={skill.level}
-                      onChange={(e) => {
-                        const next = [...skills];
-                        next[idx].level = e.target.value;
-                        setSkills(next);
-                      }}
-                      className="border border-neutral-300 px-3 py-2 text-xs focus:outline-none focus:border-neutral-900 bg-white shrink-0 font-medium"
-                    >
-                      <option value="BEGINNER">Pemula (Dasar)</option>
-                      <option value="INTERMEDIATE">Menengah (Standar)</option>
-                      <option value="EXPERT">Mahir (Advanced)</option>
-                    </select>
-                    <button
-                      type="button"
-                      onClick={() => removeSkill(idx)}
-                      className="p-2 border border-neutral-300 text-neutral-600 hover:text-red-700 hover:border-red-300 bg-white shrink-0"
-                      title="Hapus keahlian ini"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
                   </div>
                 ))}
               </div>
@@ -1223,6 +1648,7 @@ export default function TalentProfilePage() {
           preferredLocation,
         }}
       />
+      <AlertModal {...alertProps} />
     </AppShell>
   );
 }

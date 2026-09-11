@@ -12,6 +12,7 @@ import {
 import { AuthService } from './auth.service';
 import { RegisterTalentDto } from './dto/register-talent.dto';
 import { RegisterEmployerDto } from './dto/register-employer.dto';
+import { RegisterTrainingProviderDto } from './dto/register-training-provider.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { LoginPasswordDto } from './dto/login-password.dto';
 import { SendLoginOtpDto } from './dto/send-login-otp.dto';
@@ -33,6 +34,12 @@ export class AuthController {
   @HttpCode(HttpStatus.CREATED)
   async registerEmployer(@Body() dto: RegisterEmployerDto) {
     return this.authService.registerEmployer(dto);
+  }
+
+  @Post('register/provider')
+  @HttpCode(HttpStatus.CREATED)
+  async registerTrainingProvider(@Body() dto: RegisterTrainingProviderDto) {
+    return this.authService.registerTrainingProvider(dto);
   }
 
   @Post('otp/verify')

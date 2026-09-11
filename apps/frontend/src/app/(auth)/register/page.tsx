@@ -18,7 +18,7 @@ import {
 export default function RegisterGatewayPage() {
   return (
     <div className="min-h-screen bg-neutral-100 flex flex-col justify-center items-center p-4 sm:p-6 lg:p-8">
-      <div className="w-full max-w-4xl space-y-6">
+      <div className="w-full max-w-6xl space-y-6">
         
         {/* Header Resmi Gerbang Registrasi */}
         <div className="bg-white border border-neutral-300 p-6 sm:p-8 text-center space-y-2">
@@ -29,16 +29,16 @@ export default function RegisterGatewayPage() {
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-neutral-900 uppercase">
             Pilih Gerbang Registrasi Akun
           </h1>
-          <p className="text-xs sm:text-sm text-neutral-600 max-w-xl mx-auto leading-relaxed">
-            Pemerintah Kabupaten Mimika menyediakan dua portal pendaftaran terpisah untuk menjamin akurasi data warga dan kepatuhan legalitas mitra industri.
+          <p className="text-xs sm:text-sm text-neutral-600 max-w-2xl mx-auto leading-relaxed">
+            Pemerintah Kabupaten Mimika menyediakan 3 portal pendaftaran resmi untuk menjamin akurasi data warga, integritas legalitas industri, dan mutu sertifikasi balai vokasi daerah.
           </p>
         </div>
 
-        {/* DUA KARTU EKSKLUSIF (TALENTA VS PERUSAHAAN) */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* TIGA KARTU EKSKLUSIF (TALENTA VS PERUSAHAAN VS LEMBAGA PELATIHAN) */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           
           {/* GERBANG 1: TALENTA DAERAH */}
-          <div className="bg-white border border-neutral-300 p-6 sm:p-8 flex flex-col justify-between hover:border-neutral-900 transition-colors">
+          <div className="bg-white border border-neutral-300 p-6 flex flex-col justify-between hover:border-neutral-900 transition-colors">
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-bold uppercase tracking-widest bg-blue-50 text-blue-900 border border-blue-200 px-2 py-0.5">
@@ -63,7 +63,7 @@ export default function RegisterGatewayPage() {
                 </div>
                 <div className="flex items-start gap-2.5 text-xs text-neutral-700">
                   <GraduationCap className="w-4 h-4 shrink-0 text-neutral-900 mt-0.5" />
-                  <span><strong>Upskilling Gratis:</strong> Akses kelas pelatihan resmi Disnakertrans & sertifikasi BNSP.</span>
+                  <span><strong>Skillhub Mimika:</strong> Akses pelatihan vokasi & sertifikasi BNSP dengan beasiswa APBD.</span>
                 </div>
                 <div className="flex items-start gap-2.5 text-xs text-neutral-700">
                   <ShieldCheck className="w-4 h-4 shrink-0 text-neutral-900 mt-0.5" />
@@ -84,7 +84,7 @@ export default function RegisterGatewayPage() {
           </div>
 
           {/* GERBANG 2: MITRA INDUSTRI & PEMBERI KERJA */}
-          <div className="bg-white border border-neutral-300 p-6 sm:p-8 flex flex-col justify-between hover:border-neutral-900 transition-colors">
+          <div className="bg-white border border-neutral-300 p-6 flex flex-col justify-between hover:border-neutral-900 transition-colors">
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-bold uppercase tracking-widest bg-purple-50 text-purple-900 border border-purple-200 px-2 py-0.5">
@@ -124,6 +124,52 @@ export default function RegisterGatewayPage() {
                 className="w-full bg-neutral-900 hover:bg-neutral-800 text-white font-bold py-3 text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-colors"
               >
                 <span>Daftar Sebagai Mitra Industri</span>
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+            </div>
+          </div>
+
+          {/* GERBANG 3: LEMBAGA PELATIHAN & BALAI VOKASI */}
+          <div className="bg-white border border-neutral-300 p-6 flex flex-col justify-between hover:border-neutral-900 transition-colors">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase tracking-widest bg-emerald-50 text-emerald-900 border border-emerald-200 px-2 py-0.5">
+                  Lembaga Vokasi & Sertifikasi
+                </span>
+                <GraduationCap className="w-5 h-5 text-neutral-700" />
+              </div>
+
+              <div>
+                <h2 className="text-xl font-bold uppercase tracking-tight text-neutral-900">
+                  Penyedia Pelatihan
+                </h2>
+                <p className="text-xs text-neutral-600 mt-1 leading-relaxed">
+                  Bagi LPK Swasta, BLK Pemerintah, LSP Berlisensi BNSP, atau Balai Industri di wilayah Kabupaten Mimika.
+                </p>
+              </div>
+
+              <div className="border-t border-neutral-200 pt-4 space-y-2.5">
+                <div className="flex items-start gap-2.5 text-xs text-neutral-700">
+                  <Sparkles className="w-4 h-4 shrink-0 text-neutral-900 mt-0.5" />
+                  <span><strong>Etalase Resmi Skillhub:</strong> Publikasikan program pelatihan & buka batch cohort langsung ke talenta.</span>
+                </div>
+                <div className="flex items-start gap-2.5 text-xs text-neutral-700">
+                  <Award className="w-4 h-4 shrink-0 text-neutral-900 mt-0.5" />
+                  <span><strong>Atomic Auto-Skill:</strong> Kelulusan massal langsung menginjeksi keahlian ke radar industri.</span>
+                </div>
+                <div className="flex items-start gap-2.5 text-xs text-neutral-700">
+                  <ShieldCheck className="w-4 h-4 shrink-0 text-neutral-900 mt-0.5" />
+                  <span><strong>Validasi VIN Kemnaker & BNSP:</strong> Kemitraan terakreditasi di bawah Disnakertrans.</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-8 pt-5 border-t border-neutral-200">
+              <Link
+                href="/register/provider"
+                className="w-full bg-neutral-900 hover:bg-neutral-800 text-white font-bold py-3 text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-colors"
+              >
+                <span>Daftar Sebagai Lembaga</span>
                 <ArrowRight className="w-4 h-4" />
               </Link>
             </div>

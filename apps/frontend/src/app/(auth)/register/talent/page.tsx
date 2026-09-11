@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/lib/api';
+import { AlertModal, useAlertModal } from '@/components/AlertModal';
 import { 
   ArrowRight, 
   AlertCircle, 
@@ -19,6 +20,7 @@ import {
 
 export default function RegisterTalentPage() {
   const router = useRouter();
+  const { alertProps, showAlert } = useAlertModal();
   const [step, setStep] = useState<'FORM' | 'OTP'>('FORM');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -56,12 +58,16 @@ export default function RegisterTalentPage() {
     setError('');
 
     if (password !== confirmPassword) {
-      setError('Konfirmasi kata sandi tidak cocok dengan kata sandi yang Anda masukkan.');
+      const msg = 'Konfirmasi kata sandi tidak cocok dengan kata sandi yang Anda masukkan.';
+      setError(msg);
+      showAlert('warning', 'Kata Sandi Tidak Cocok', msg);
       return;
     }
 
     if (password.length < 8) {
-      setError('Kata sandi harus memiliki panjang minimal 8 karakter.');
+      const msg = 'Kata sandi harus memiliki panjang minimal 8 karakter.';
+      setError(msg);
+      showAlert('warning', 'Kata Sandi Kurang Panjang', msg);
       return;
     }
 
@@ -77,8 +83,16 @@ export default function RegisterTalentPage() {
       setStep('OTP');
       setCooldown(res.data?.cooldownSeconds || 60);
       setSuccessMessage('Pendaftaran berhasil! Silakan masukkan 6 digit kode OTP yang telah dikirim ke email Anda.');
+      showAlert(
+        'success',
+        'Pendaftaran Berhasil!',
+        'Kode OTP 6-digit verifikasi telah dikirim ke email Anda. Silakan masukkan kode untuk memverifikasi akun.',
+        'Lanjut ke Verifikasi OTP →',
+      );
     } else {
-      setError(res.message || 'Pendaftaran gagal.');
+      const errMsg = res.message || 'Pendaftaran gagal.';
+      setError(errMsg);
+      showAlert('error', 'Pendaftaran Gagal', errMsg);
     }
   };
 
@@ -101,11 +115,19 @@ export default function RegisterTalentPage() {
       setSuccessMessage('Verifikasi akun berhasil! Mengalihkan ke halaman masuk untuk login...');
       // Bersihkan sesi cookie agar pengguna login ulang secara formal dengan email dan kata sandi
       await apiFetch('/auth/logout', { method: 'POST' });
-      setTimeout(() => {
-        router.push(`/login?email=${encodeURIComponent(email)}&verified=true`);
-      }, 1200);
+      showAlert(
+        'success',
+        'Verifikasi Akun Berhasil!',
+        'Akun talenta Anda kini telah aktif dan terverifikasi secara resmi. Silakan masuk menggunakan email dan kata sandi Anda.',
+        'Masuk Sekarang →',
+        () => {
+          router.push(`/login?email=${encodeURIComponent(email)}&verified=true`);
+        },
+      );
     } else {
-      setError(res.message || 'Kode OTP tidak valid atau telah kedaluwarsa.');
+      const errMsg = res.message || 'Kode OTP tidak valid atau telah kedaluwarsa.';
+      setError(errMsg);
+      showAlert('error', 'Verifikasi Gagal', errMsg);
     }
   };
 
@@ -122,9 +144,13 @@ export default function RegisterTalentPage() {
     setResending(false);
     if (res.status === 'success') {
       setCooldown(res.data?.cooldownSeconds || 60);
-      setSuccessMessage('Kode OTP baru berhasil dikirim ke email Anda.');
+      const succMsg = 'Kode OTP baru berhasil dikirim ke email Anda.';
+      setSuccessMessage(succMsg);
+      showAlert('success', 'Kode OTP Baru Terkirim!', succMsg);
     } else {
-      setError(res.message || 'Gagal mengirim ulang kode OTP.');
+      const errMsg = res.message || 'Gagal mengirim ulang kode OTP.';
+      setError(errMsg);
+      showAlert('error', 'Gagal Kirim Ulang OTP', errMsg);
     }
   };
 
@@ -441,6 +467,7 @@ export default function RegisterTalentPage() {
         </div>
 
       </div>
+      <AlertModal {...alertProps} />
     </div>
   );
 }

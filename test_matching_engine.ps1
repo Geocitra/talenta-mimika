@@ -119,10 +119,11 @@ if ($matchRes.status -eq "success" -and $matchRes.totalEvaluated -ge 2) {
     Write-Host "Pendidikan     : $($topCandidate.lastEducationDegree)"
     Write-Host "Pengalaman     : $($topCandidate.totalExperienceMonths) Bulan"
     Write-Host "Fuzzy Applied  : $($topCandidate.breakdown.isFuzzyEquivalenceApplied)"
-    Write-Host "Skor Skills    : $($topCandidate.breakdown.skillMatchScore)% (Bobot 40%)"
+    Write-Host "Skor Skills    : $($topCandidate.breakdown.skillMatchScore)% (Bobot 35%)"
     Write-Host "Skor Exp       : $($topCandidate.breakdown.experienceMatchScore)% (Bobot 30%)"
-    Write-Host "Skor Social DNA: $($topCandidate.breakdown.socialDnaMatchScore)% (Bobot 20%)"
-    Write-Host "Skor Jarak GIS : $($topCandidate.breakdown.distanceMatchScore)% (Bobot 10%)"
+    Write-Host "Skor Edukasi   : $($topCandidate.breakdown.educationMatchScore)% (Bobot 20%)"
+    Write-Host "Skor Social DNA: $($topCandidate.breakdown.socialDnaMatchScore)% (Bobot 15%)"
+    Write-Host "Skor Jarak GIS : $($topCandidate.breakdown.distanceMatchScore)% (Informatif)"
     if ($topCandidate.breakdown.distanceKm) {
         Write-Host "Jarak Lapangan : $($topCandidate.breakdown.distanceKm) Km"
     }

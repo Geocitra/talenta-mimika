@@ -101,9 +101,14 @@ export class TalentController {
   // AKSES / PRATINJAU DOKUMEN SERTIFIKAT PDF
   // ============================================================
   @Get('certificates/:fileName')
+  @UseGuards(JwtAuthGuard) // PROTECTED VARIATIONS: Wajib login untuk mengunduh/melihat PDF sertifikat
   async getCertificateFile(@Param('fileName') fileName: string, @Res() res: Response) {
     const sanitized = path.basename(fileName);
-    const filePath = path.resolve(process.cwd(), 'uploads', 'certificates', sanitized);
+    let filePath = path.resolve(process.cwd(), 'uploads', 'certificates', sanitized);
+    if (!fs.existsSync(filePath)) {
+      const alt = path.resolve(process.cwd(), 'apps', 'backend', 'uploads', 'certificates', sanitized);
+      if (fs.existsSync(alt)) filePath = alt;
+    }
 
     if (!fs.existsSync(filePath)) {
       throw new NotFoundException('Berkas sertifikat tidak ditemukan.');

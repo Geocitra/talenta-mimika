@@ -36,4 +36,8 @@ export class UpdateTalentProfileDto {
   @IsOptional()
   @IsBoolean()
   isAvailable?: boolean;
+
+  @IsOptional()
+  @IsString()
+  lastUpdatedAt?: string;
 }

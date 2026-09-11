@@ -14,8 +14,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     super({
       jwtFromRequest: ExtractJwt.fromExtractors([
         (request: Request) => {
-          // Mengekstrak token langsung dari HttpOnly Cookie
           return request?.cookies?.access_token || null;
+        },
+        ExtractJwt.fromAuthHeaderAsBearerToken(),
+        (request: Request) => {
+          // Mendukung ekstraksi token query parameter untuk streaming dokumen di dalam iframe/viewer
+          return (request?.query?.token as string) || null;
         },
       ]),
       ignoreExpiration: false,
@@ -26,7 +30,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   async validate(payload: { sub: string; email: string; role: string }) {
     const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },
-      include: { talent: true, employer: true },
+      include: { talent: true, employer: true, trainingProvider: true },
     });
 
     if (!user || user.deletedAt) {

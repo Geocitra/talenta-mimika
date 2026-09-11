@@ -117,6 +117,14 @@ try {
                 level = "INTERMEDIATE"
             }
         )
+        certifications = @(
+            @{
+                id = "cert-1"
+                name = "Sertifikat SIO Operator Excavator"
+                issuer = "Kemnaker RI"
+                issueYear = "2021"
+            }
+        )
         socialDna = @{
             workPreferences = @("Siap Shift Malam", "Siap Remote Area", "Tinggal di Timika")
             communityActivities = "Ketua Pemuda Komunitas Lingkar Tambang Mimika"

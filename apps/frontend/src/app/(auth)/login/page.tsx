@@ -4,10 +4,12 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/lib/api';
+import { AlertModal, useAlertModal } from '@/components/AlertModal';
 import { KeyRound, Mail, ArrowRight, ShieldCheck, AlertCircle, CheckCircle2, Eye, EyeOff } from 'lucide-react';
 
 export default function LoginPage() {
   const router = useRouter();
+  const { alertProps, showAlert } = useAlertModal();
   const [tab, setTab] = useState<'PASSWORD' | 'OTP'>('PASSWORD');
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
@@ -49,7 +51,9 @@ export default function LoginPage() {
       else if (res.data.role === 'EMPLOYER') router.push('/employer');
       else router.push('/admin');
     } else {
-      setError(res.message || 'Login gagal.');
+      const errMsg = res.message || 'Login gagal. Periksa kembali email dan kata sandi Anda.';
+      setError(errMsg);
+      showAlert('error', 'Login Gagal', errMsg);
     }
   };
 
@@ -66,8 +70,15 @@ export default function LoginPage() {
     setLoading(false);
     if (res.status === 'success') {
       setOtpSent(true);
+      showAlert(
+        'success',
+        'Kode OTP Terkirim!',
+        `Kode OTP login telah dikirimkan ke email ${identifier}. Silakan periksa kotak masuk email Anda.`,
+      );
     } else {
-      setError(res.message || 'Gagal mengirim kode OTP.');
+      const errMsg = res.message || 'Gagal mengirim kode OTP.';
+      setError(errMsg);
+      showAlert('error', 'Gagal Mengirim OTP', errMsg);
     }
   };
 
@@ -91,7 +102,9 @@ export default function LoginPage() {
       else if (res.data.role === 'EMPLOYER') router.push('/employer');
       else router.push('/admin');
     } else {
-      setError(res.message || 'Verifikasi OTP gagal.');
+      const errMsg = res.message || 'Verifikasi OTP gagal atau telah kedaluwarsa.';
+      setError(errMsg);
+      showAlert('error', 'Verifikasi Gagal', errMsg);
     }
   };
 
@@ -297,6 +310,7 @@ export default function LoginPage() {
           </p>
         </div>
       </div>
+      <AlertModal {...alertProps} />
     </div>
   );
 }

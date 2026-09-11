@@ -15,6 +15,7 @@ import { InstitutionModule } from './institution/institution.module';
 import { MajorModule } from './major/major.module';
 import { SkillModule } from './skill/skill.module';
 import { AdminModule } from './admin/admin.module';
+import { AiModule } from './ai/ai.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { AdminModule } from './admin/admin.module';
     MajorModule,
     SkillModule,
     AdminModule,
+    AiModule,
   ],
 })
 export class AppModule {}

@@ -68,6 +68,24 @@ const SKILLS_CATALOG = [
   { name: 'Administrasi Sumber Daya Manusia & Penggajian (HR & Payroll)', category: 'LOGISTIK_ADMIN', description: 'Pengelolaan absensi, klaim BPJS Ketenagakerjaan, dan rekrutmen staf' },
   { name: 'Sekretaris Eksekutif & Manajemen Arsip Digital', category: 'LOGISTIK_ADMIN', description: 'Korespondensi kedinasan, notulensi rapat, dan pengelolaan dokumen' },
   { name: 'Petugas Keamanan Lapangan Berlisensi (Gada Pratama)', category: 'LOGISTIK_ADMIN', description: 'Pengamanan pos jaga aset vital, pemeriksaan pengunjung, dan patroli' },
+
+  // 7. KONSTRUKSI, BANGUNAN & PEKERJAAN SIPIL
+  { name: 'Pekerjaan Adukan Semen & Pengecoran', category: 'KONSTRUKSI_SIPIL', description: 'Pencampuran agregat beton, slump test, dan pengecoran struktur bangunan' },
+  { name: 'Pemasangan Batu Bata, Batako & Hebel', category: 'KONSTRUKSI_SIPIL', description: 'Pemasangan dinding bata presisi, leveling benang, dan spesi adukan' },
+  { name: 'Pekerjaan Pondasi & Galian Tanah', category: 'KONSTRUKSI_SIPIL', description: 'Penggalian parit, pemasangan batu kali, dan pemadatan tanah pondasi' },
+  { name: 'Plesteran Dinding & Acian Halus', category: 'KONSTRUKSI_SIPIL', description: 'Perataan permukaan dinding, pembuatan kepalaan plester, dan acian halus' },
+  { name: 'K3 Konstruksi & Pekerjaan Sipil', category: 'KONSTRUKSI_SIPIL', description: 'Penerapan keselamatan kerja konstruksi, APD proyek, dan pencegahan bahaya jatuh' },
+  { name: 'Pemasangan Bekisting & Pembesian', category: 'KONSTRUKSI_SIPIL', description: 'Pemotongan, pembengkokan besi tulangan, dan perakitan bekisting kayu/besi' },
+  { name: 'Tukang Kayu Konstruksi & Plafon', category: 'KONSTRUKSI_SIPIL', description: 'Pemasangan rangka kayu/hollow, kusen pintu/jendela, dan plafon gypsum' },
+  { name: 'Pengecatan Bangunan & Finishing Arsitektur', category: 'KONSTRUKSI_SIPIL', description: 'Aplikasi cat dinding interior/eksterior, waterproofing, dan finishing permukaan' },
+
+  // 8. KEAMANAN, PENGAMANAN & SATPAM (SECURITY)
+  { name: 'Gada Pratama / Gada Madya Bersertifikat', category: 'KEAMANAN_SECURITY', description: 'Kualifikasi kepolisian dasar/madya untuk petugas pengamanan profesional' },
+  { name: 'Patroli Area & Pengawasan Akses Masuk', category: 'KEAMANAN_SECURITY', description: 'Pemeriksaan ID card, buku mutasi jaga, dan ronda pos perimeter fasilitas' },
+  { name: 'Pengendalian Situasi Darurat & K3', category: 'KEAMANAN_SECURITY', description: 'Prosedur evakuasi tanggap darurat bencana, huru-hara, dan first response K3' },
+  { name: 'Pengoperasian CCTV & Pemantauan Monitor', category: 'KEAMANAN_SECURITY', description: 'Monitoring surveillance multi-layar, playback rekaman, dan deteksi anomali' },
+  { name: 'Pemeriksaan Kendaraan & Manajemen Tamu', category: 'KEAMANAN_SECURITY', description: 'Inspeksi bagasi, cermin kolong (under-vehicle search), dan registrasi tamu' },
+  { name: 'Pengamanan Aset Vital & Pengawalan', category: 'KEAMANAN_SECURITY', description: 'Protokol perlindungan aset strategis industri dan pengawalan pengangkutan barang berharga' },
 ];
 
 async function main() {
