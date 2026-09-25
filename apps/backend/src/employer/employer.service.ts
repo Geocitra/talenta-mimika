@@ -59,8 +59,18 @@ export class EmployerService {
       SCALE_OVER_1000: 2500,
     };
 
+    // Komposisi Ketenagakerjaan Daerah: Papua (OAP), Asing (TKA), dan Nasional (WNI Non-OAP)
     let calculatedEmployeeCount = employer.employeeCount;
-    if (dto.employeeCount !== undefined) {
+    if (
+      dto.employeeCountPapua !== undefined ||
+      dto.employeeCountForeign !== undefined ||
+      dto.employeeCountNational !== undefined
+    ) {
+      const papua = dto.employeeCountPapua ?? employer.employeeCountPapua ?? 0;
+      const foreign = dto.employeeCountForeign ?? employer.employeeCountForeign ?? 0;
+      const national = dto.employeeCountNational ?? employer.employeeCountNational ?? 0;
+      calculatedEmployeeCount = papua + foreign + national;
+    } else if (dto.employeeCount !== undefined) {
       calculatedEmployeeCount = dto.employeeCount;
     } else if (dto.companySize && medianMap[dto.companySize]) {
       calculatedEmployeeCount = medianMap[dto.companySize];
@@ -75,6 +85,9 @@ export class EmployerService {
         industrySector: dto.industrySector ?? employer.industrySector,
         companySize: dto.companySize ?? employer.companySize,
         employeeCount: calculatedEmployeeCount,
+        employeeCountPapua: dto.employeeCountPapua !== undefined ? dto.employeeCountPapua : employer.employeeCountPapua,
+        employeeCountForeign: dto.employeeCountForeign !== undefined ? dto.employeeCountForeign : employer.employeeCountForeign,
+        employeeCountNational: dto.employeeCountNational !== undefined ? dto.employeeCountNational : employer.employeeCountNational,
         address: dto.address ?? employer.address,
         locationLat: dto.locationLat ?? employer.locationLat,
         locationLng: dto.locationLng ?? employer.locationLng,

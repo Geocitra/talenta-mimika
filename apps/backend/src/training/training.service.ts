@@ -16,9 +16,13 @@ import {
   TrainingProgramStatus,
   TrainingEnrollmentStatus,
   BatchEnrollmentStatus,
+  AdmissionPolicy,
+  ProgramFundingType,
   QuizType,
 } from '@prisma/client';
 import * as crypto from 'crypto';
+import * as fs from 'fs';
+import * as path from 'path';
 
 // Service LMS & Progressive Lock Engine
 @Injectable()
@@ -169,6 +173,11 @@ export class TrainingService {
       include: {
         provider: true,
         batches: {
+          include: {
+            _count: {
+              select: { enrollments: true },
+            },
+          },
           orderBy: { batchNumber: 'asc' },
         },
         sessions: {
@@ -183,6 +192,42 @@ export class TrainingService {
       status: 'success',
       total: programs.length,
       data: programs,
+    };
+  }
+
+  async getProgramById(id: string) {
+    const program = await this.prisma.trainingProgram.findUnique({
+      where: { id },
+      include: {
+        provider: true,
+        batches: {
+          include: {
+            _count: {
+              select: { enrollments: true },
+            },
+          },
+          orderBy: { batchNumber: 'asc' },
+        },
+        sessions: {
+          select: {
+            id: true,
+            sessionOrder: true,
+            title: true,
+            contentType: true,
+            hasCheckpointQuiz: true,
+          },
+          orderBy: { sessionOrder: 'asc' },
+        },
+      },
+    });
+
+    if (!program || program.status !== TrainingProgramStatus.PUBLISHED) {
+      throw new NotFoundException('Program pelatihan tidak ditemukan atau belum dipublikasi.');
+    }
+
+    return {
+      status: 'success',
+      data: program,
     };
   }
 
@@ -229,9 +274,6 @@ export class TrainingService {
 
     const batch = await this.prisma.trainingBatch.findUnique({
       where: { id: batchId },
-      include: {
-        _count: { select: { enrollments: true } },
-      },
     });
 
     if (!batch || batch.programId !== programId) {
@@ -240,10 +282,6 @@ export class TrainingService {
 
     if (!batch.isOpen) {
       throw new BadRequestException('Pendaftaran untuk batch ini telah ditutup.');
-    }
-
-    if (batch._count.enrollments >= batch.quota) {
-      throw new BadRequestException(`Kuota kursi untuk ${batch.batchName} telah penuh (${batch.quota} kursi).`);
     }
 
     const talent = await this.prisma.talent.findUnique({
@@ -268,30 +306,78 @@ export class TrainingService {
           enrollmentId: existing.id,
           batchName: batch.batchName,
           selectionStatus: existing.selectionStatus,
+          admissionPolicy: batch.admissionPolicy,
           whatsAppOutreach: this.buildTalentWhatsAppDraft(talent, program, batch),
         },
       };
     }
 
-    const enrollment = await this.prisma.trainingEnrollment.create({
-      data: {
-        talentId,
-        programId,
-        batchId,
-        status: TrainingEnrollmentStatus.ENROLLED,
-        selectionStatus: BatchEnrollmentStatus.REGISTERED,
-      },
+    // Cek status pembukaan batch
+    if (!batch.isOpen) {
+      throw new BadRequestException(`Pendaftaran untuk ${batch.batchName} telah ditutup.`);
+    }
+
+    // PROTEKSI KONKURENSI ATOMIK & REGISTRASI BERBASIS SKEMA PEMBIAYAAN (PRISMA TRANSACTION)
+    const { enrollment, isPaid, seatsLeft } = await this.prisma.$transaction(async (tx) => {
+      // Hitung jumlah siswa yang SUDAH RESMI DITERIMA (ADMITTED) mengunci kursi fisik
+      const admittedCount = await tx.trainingEnrollment.count({
+        where: {
+          batchId,
+          selectionStatus: BatchEnrollmentStatus.ADMITTED,
+        },
+      });
+
+      if (admittedCount >= batch.quota) {
+        // Otomatis tutup batch jika kuota admitted penuh
+        await tx.trainingBatch.update({
+          where: { id: batchId },
+          data: { isOpen: false },
+        });
+        throw new BadRequestException(`Mohon maaf, kuota kursi untuk ${batch.batchName} telah penuh (${batch.quota} kursi). Pendaftaran ditutup.`);
+      }
+
+      const isPaidProgram = batch.fundingType === ProgramFundingType.MANDIRI_BERBAYAR;
+      // ALUR VALIDASI OPERASIONAL NYATA:
+      // - Berbayar (Mandiri): PENDING_PAYMENT (menunggu transfer / kasir balai)
+      // - Gratis (APBD Mimika / CSR): REGISTERED (menunggu jadwal seleksi berkas / wawancara balai)
+      const initialSelectionStatus = isPaidProgram
+        ? BatchEnrollmentStatus.PENDING_PAYMENT
+        : BatchEnrollmentStatus.REGISTERED;
+
+      const created = await tx.trainingEnrollment.create({
+        data: {
+          talentId,
+          programId,
+          batchId,
+          status: TrainingEnrollmentStatus.ENROLLED,
+          selectionStatus: initialSelectionStatus,
+        },
+      });
+
+      return {
+        enrollment: created,
+        isPaid: isPaidProgram,
+        seatsLeft: Math.max(0, batch.quota - admittedCount),
+      };
     });
 
     const whatsAppOutreach = this.buildTalentWhatsAppDraft(talent, program, batch);
 
+    const successMessage = isPaid
+      ? `Pendaftaran terkirim! Status: Menunggu Pembayaran. Silakan transfer biaya investasi pelatihan dan unggah bukti transfer.`
+      : `Pendaftaran tercatat! Status: Terdaftar. Silakan hubungi narahubung resmi balai via WhatsApp untuk jadwal verifikasi berkas (KTP Mimika) & wawancara.`;
+
     return {
       status: 'success',
-      message: `Pendaftaran berhasil! Anda resmi terdata di ${batch.batchName} (${program.title}). Silakan hubungi narahubung resmi lembaga.`,
+      message: successMessage,
       data: {
         enrollmentId: enrollment.id,
         batchName: batch.batchName,
+        status: enrollment.selectionStatus,
         selectionStatus: enrollment.selectionStatus,
+        fundingType: batch.fundingType,
+        announcementDate: batch.announcementDate,
+        seatsLeft,
         whatsAppOutreach,
       },
     };
@@ -302,14 +388,32 @@ export class TrainingService {
     const picName = program.provider?.picName || 'Admin Pendaftaran';
     const institution = program.provider?.institutionName || 'Balai Pelatihan';
 
+    const isPaid = batch.fundingType === ProgramFundingType.MANDIRI_BERBAYAR;
+
+    let policyNote = '';
+    if (isPaid) {
+      const priceText = Number(batch.priceAmount || 0).toLocaleString('id-ID');
+      const bankInfo = batch.bankName
+        ? `\nRekening: *${batch.bankName}* - *${batch.bankAccountNumber || '-'}* (a.n. ${batch.bankAccountHolder || institution})`
+        : '';
+      policyNote = `Status: *MENUNGGU PEMBAYARAN*\nBiaya: Rp ${priceText}${bankInfo}\nMohon informasi panduan pembayaran transfer atau pembayaran langsung di kasir balai.`;
+    } else {
+      const announcement = batch.announcementDate
+        ? ` (Estimasi Pengumuman: ${new Date(batch.announcementDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })})`
+        : '';
+      policyNote = `Status: *MENUNGGU SELEKSI BERKAS / WAWANCARA*${announcement}\nMohon informasi terkait jadwal verifikasi berkas fisik (KTP Mimika) atau tes wawancara langsung.`;
+    }
+
     const text = `Halo Bapak/Ibu ${picName} (${institution}),
 
-Saya *${talent.fullName}* (NIK: ${talent.nik}) telah resmi mendaftar melalui platform *MIMIKA TALENTA* untuk program:
+Saya *${talent.fullName}* (NIK: ${talent.nik}) telah mendaftar melalui platform *MIMIKA TALENTA* untuk program:
 • *${program.title}*
 • *${batch.batchName}*
 • Skema: ${batch.fundingType.replace(/_/g, ' ')} (${batch.trainingMethod})
 
-Mohon informasi terkait berkas verifikasi dan jadwal seleksi wawancara tatap muka. Terima kasih.`;
+${policyNote}
+
+Terima kasih atas perhatian Bapak/Ibu.`;
 
     let cleanedPhone = picPhone.replace(/[^0-9]/g, '');
     if (cleanedPhone.startsWith('0')) cleanedPhone = '62' + cleanedPhone.slice(1);
@@ -321,6 +425,65 @@ Mohon informasi terkait berkas verifikasi dan jadwal seleksi wawancara tatap muk
       picPhone,
       draftMessage: text,
       whatsAppDirectUrl: waUrl,
+    };
+  }
+
+  // ==================== UNGGAH BUKTI PEMBAYARAN SISWA MANDIRI ====================
+  async uploadPaymentProof(
+    talentUserId: string,
+    enrollmentId: string,
+    file: any,
+    notes?: string,
+  ) {
+    if (!file) {
+      throw new BadRequestException('Berkas bukti transfer wajib disertakan.');
+    }
+
+    const talent = await this.prisma.talent.findUnique({
+      where: { id: talentUserId },
+    });
+    if (!talent) throw new NotFoundException('Data talenta tidak ditemukan.');
+
+    const enrollment = await this.prisma.trainingEnrollment.findUnique({
+      where: { id: enrollmentId },
+      include: { batch: true },
+    });
+
+    if (!enrollment || enrollment.talentId !== talent.id) {
+      throw new ForbiddenException('Akses ditolak: Pendaftaran ini bukan milik Anda.');
+    }
+
+    let uploadDir = path.resolve(process.cwd(), 'uploads', 'payments');
+    if (!fs.existsSync(uploadDir)) {
+      const alt = path.resolve(process.cwd(), 'apps', 'backend', 'uploads', 'payments');
+      if (fs.existsSync(path.dirname(alt))) uploadDir = alt;
+    }
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+
+    const ext = path.extname(file.originalname).toLowerCase() || '.jpg';
+    const uniqueFileName = `payment-${enrollment.id}-${Date.now()}${ext}`;
+    const targetPath = path.join(uploadDir, uniqueFileName);
+
+    fs.writeFileSync(targetPath, file.buffer);
+    const fileUrl = `/uploads/payments/${uniqueFileName}`;
+
+    const updated = await this.prisma.trainingEnrollment.update({
+      where: { id: enrollmentId },
+      data: {
+        paymentProofUrl: fileUrl,
+        selectionNotes: notes || 'Bukti pembayaran diunggah oleh siswa.',
+      },
+    });
+
+    return {
+      status: 'success',
+      message: 'Bukti pembayaran berhasil diunggah. Menunggu verifikasi admin keuangan balai.',
+      data: {
+        enrollmentId: updated.id,
+        paymentProofUrl: fileUrl,
+      },
     };
   }
 

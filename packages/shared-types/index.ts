@@ -3,6 +3,10 @@ export interface TalentProfileDto {
     id: string;
     fullName: string;
     birthDate: string; // Format: YYYY-MM-DD
+    birthPlace?: string;
+    domicile?: string;
+    isLocal?: boolean;
+    phone?: string;
     profileCompletenessScore: number;
     isActivelySeeking: boolean;
     skills: string[]; // Daftar keahlian
@@ -36,7 +40,7 @@ export interface EducationItem {
     institution: string;
     degree: string; // misal: SMK, D3, S1, SMA
     major: string;             // Nama jurusan resmi/bersih yang tampil di profil
-    rawMajorInput?: string;    // Teks asli yang diketik warga (jejak audit)
+    rawMajorInput?: string;    // Teks asli yang diketik talent (jejak audit)
     isAiNormalized?: boolean;  // Penanda bahwa teks hasil koreksi cerdas
     aiConfidence?: number;     // Skor keyakinan normalisasi AI (0 - 1.0)
     graduationYear: number;
@@ -78,12 +82,17 @@ export interface SocialDnaDto {
     portfolioUrl?: string; // Tautan Portofolio / LinkedIn / GitHub / Profil Publik
     workPreferences?: string[]; // misal: ["Siap Shift Malam", "Siap Remote Area"]
     preferredLocation?: string; // misal: "Kabupaten Mimika (Highland/Lowland)"
+    desiredJobRoles?: string[]; // Preferensi / posisi pekerjaan yang dicari (misal: "Helper Mekanik", "Operator Gudang", "Security", "Driver")
     communityActivities?: string; // Aktivitas sosial / organisasi di Mimika
     workHabitsNotes?: string;
 }
 
 export interface UpdateTalentProfileDto {
     phone?: string;
+    birthPlace?: string;
+    birthDate?: string; // Format: YYYY-MM-DD
+    domicile?: string;
+    isLocal?: boolean;
     bio?: string;
     avatarUrl?: string;
     education?: EducationItem[];
@@ -112,6 +121,9 @@ export interface UpdateEmployerProfileDto {
   industrySector?: string;
   companySize?: CompanySize;
   employeeCount?: number;
+  employeeCountPapua?: number;
+  employeeCountForeign?: number;
+  employeeCountNational?: number;
   address?: string;
   locationLat?: number;
   locationLng?: number;
@@ -146,6 +158,9 @@ export interface EmployerProfileResponseDto {
   industrySector?: string;
   companySize: CompanySize;
   employeeCount?: number;
+  employeeCountPapua?: number;
+  employeeCountForeign?: number;
+  employeeCountNational?: number;
   address?: string;
   locationLat?: number;
   locationLng?: number;
@@ -342,6 +357,9 @@ export interface CandidateRecommendationDto {
   avatarUrl?: string;
   email?: string;
   phone?: string;
+  birthPlace?: string;
+  birthDate?: string;
+  domicile?: string;
   bio?: string;
   socialDna?: any;
   overallScore: number;          // 0 - 100%
@@ -648,6 +666,7 @@ export interface BatchParticipantItemDto {
   fullName: string;
   nik: string;
   phone?: string;
+  domicile?: string;
   email: string;
   avatarUrl?: string;
   selectionStatus: BatchEnrollmentStatus;
@@ -742,7 +761,7 @@ export interface FunnelStepDto {
 export interface SkillGapItemDto {
   skillName: string;
   demandCount: number;  // Jumlah dicari industri (lowongan)
-  supplyCount: number;  // Jumlah dimiliki warga (talenta)
+  supplyCount: number;  // Jumlah dimiliki talent
   gap: number;          // Selisih kekurangan (Demand - Supply)
   status: 'SURPLUS' | 'BALANCE' | 'CRITICAL_GAP';
 }

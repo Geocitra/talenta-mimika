@@ -20,7 +20,9 @@ import {
   MapPin,
   Clock,
   Layers,
-  Check
+  Check,
+  Zap,
+  ClipboardCheck,
 } from 'lucide-react';
 
 const CATEGORIES = [
@@ -28,9 +30,12 @@ const CATEGORIES = [
   { value: 'ALAT_BERAT', label: 'Operasional & Mekanik Alat Berat' },
   { value: 'K3_PERTAMBANGAN', label: 'K3 & Keselamatan Kerja Tambang' },
   { value: 'MEKANIK', label: 'Permesinan Industri & Mekanikal' },
+  { value: 'ELEKTRIKAL', label: 'Kelistrikan & Instrumentasi Industri' },
   { value: 'DIGITAL_IT', label: 'Teknologi Informasi & Digital' },
-  { value: 'LOGISTIK', label: 'Supply Chain, Gudang & Logistik' },
+  { value: 'LOGISTIK', label: 'Supply Chain, Pergudangan & Logistik' },
+  { value: 'KONSTRUKSI', label: 'Konstruksi & Sipil Lapangan' },
   { value: 'HOSPITALITY', label: 'Hospitality, Boga & Perhotelan' },
+  { value: 'OTOMOTIF', label: 'Otomotif & Mesin Kendaraan' },
 ];
 
 const WELFARE_OPTIONS = [
@@ -70,6 +75,8 @@ function CreateProgramOrBatchContent() {
   const [targetSkills, setTargetSkills] = useState<{ name: string; level: 'BEGINNER' | 'INTERMEDIATE' | 'EXPERT' }[]>([
     { name: '', level: 'EXPERT' },
   ]);
+  const [coverImageUrl, setCoverImageUrl] = useState('/images/flyers/alat_berat_flyer.jpg');
+  const [uploadingFlyer, setUploadingFlyer] = useState(false);
 
   // Form Batch State
   const [selectedProgramId, setSelectedProgramId] = useState(preSelectedProgramId || '');
@@ -89,6 +96,12 @@ function CreateProgramOrBatchContent() {
   const [trainingStart, setTrainingStart] = useState('2026-10-20');
   const [trainingEnd, setTrainingEnd] = useState('2026-11-20');
   const [venueAddress, setVenueAddress] = useState('');
+  const [admissionPolicy, setAdmissionPolicy] = useState<'INSTANT_ADMISSION' | 'CURATED_SELECTION'>('CURATED_SELECTION');
+  const [announcementDate, setAnnouncementDate] = useState('2026-10-18');
+  const [bankName, setBankName] = useState('BANK PAPUA');
+  const [bankAccountNumber, setBankAccountNumber] = useState('');
+  const [bankAccountHolder, setBankAccountHolder] = useState('');
+  const [paymentInstructions, setPaymentInstructions] = useState('');
 
   useEffect(() => {
     loadData();
@@ -138,6 +151,33 @@ function CreateProgramOrBatchContent() {
     }
   };
 
+  const handleFlyerUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    setUploadingFlyer(true);
+    try {
+      const res = await apiFetch('/training-providers/upload-flyer', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (res.status === 'success' && res.data?.flyerUrl) {
+        setCoverImageUrl(res.data.flyerUrl);
+        showAlert('success', 'Flyer Berhasil Diunggah', 'Poster brosur flyer program berhasil diunggah.');
+      } else {
+        showAlert('error', 'Gagal Mengunggah Flyer', res.message || 'Format gambar tidak didukung.');
+      }
+    } catch (err: any) {
+      showAlert('error', 'Gagal', err.message);
+    } finally {
+      setUploadingFlyer(false);
+    }
+  };
+
   const handleSubmitProgram = async (e: React.FormEvent) => {
     e.preventDefault();
     const validSkills = targetSkills.filter((s) => s.name.trim().length > 0);
@@ -159,6 +199,7 @@ function CreateProgramOrBatchContent() {
       totalLessonHours: Number(totalLessonHours),
       submitForApproval,
       targetSkills: validSkills,
+      coverImageUrl: coverImageUrl.trim() || undefined,
     };
 
     const res = await apiFetch('/training-providers/programs', {
@@ -170,11 +211,9 @@ function CreateProgramOrBatchContent() {
     if (res.status === 'success') {
       showAlert(
         'success',
-        'Program Studio Berhasil Dibuat!',
-        submitForApproval
-          ? `Program "${title}" berhasil diajukan ke Meja Kurasi Tier-2 Disnakertrans Mimika. Anda dapat langsung membuka batch gelombang pertama sekarang.`
-          : `Draf program "${title}" berhasil disimpan.`,
-        'Buka Batch untuk Program Ini →',
+        'Program Resmi Terbit di Katalog Skillhub!',
+        `Program "${title}" telah aktif dan tayang langsung di Katalog Publik Skillhub Mimika. Lembaga Anda kini dapat segera membuka gelombang batch pendaftaran peserta.`,
+        'Buka Batch Pendaftaran Sekarang →',
         () => {
           setSelectedProgramId(res.data.id);
           setActiveMode('BATCH');
@@ -198,8 +237,14 @@ function CreateProgramOrBatchContent() {
       batchName,
       fundingType,
       priceAmount: fundingType === 'MANDIRI_BERBAYAR' ? Number(priceAmount) : 0,
+      bankName: fundingType === 'MANDIRI_BERBAYAR' ? bankName.trim() : undefined,
+      bankAccountNumber: fundingType === 'MANDIRI_BERBAYAR' ? bankAccountNumber.trim() : undefined,
+      bankAccountHolder: fundingType === 'MANDIRI_BERBAYAR' ? bankAccountHolder.trim() : undefined,
+      paymentInstructions: fundingType === 'MANDIRI_BERBAYAR' ? paymentInstructions.trim() : undefined,
       trainingMethod,
       quota: Number(quota),
+      admissionPolicy,
+      announcementDate: admissionPolicy === 'CURATED_SELECTION' && announcementDate ? announcementDate : undefined,
       welfareBenefits: selectedWelfare,
       registrationStart,
       registrationEnd,
@@ -218,7 +263,7 @@ function CreateProgramOrBatchContent() {
       showAlert(
         'success',
         'Batch Cohort Resmi Dibuka!',
-        `Gelombang "${batchName}" dengan kuota ${quota} kursi berhasil dibuka dan segera menerima pendaftar talenta.`,
+        `Gelombang "${batchName}" dengan kuota ${quota} kursi (${admissionPolicy === 'INSTANT_ADMISSION' ? 'Penerimaan Langsung' : 'Kurasi Berkas & Wawancara'}) berhasil dibuka dan siap menerima pendaftar talenta.`,
         'Kembali ke Dasbor Balai →',
         () => {
           router.push('/provider');
@@ -516,19 +561,103 @@ function CreateProgramOrBatchContent() {
               </div>
             </div>
 
-            {/* Opsi Ajukan Langsung ke Disnaker */}
-            <div className="pt-2 border-t border-neutral-200">
-              <label className="flex items-start gap-2.5 text-xs text-neutral-800 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={submitForApproval}
-                  onChange={(e) => setSubmitForApproval(e.target.checked)}
-                  className="mt-0.5"
-                />
+            {/* SECTION UPLOAD FLYER BANNER PROMOSI (GAYA SHOPEE) */}
+            <div className="border border-neutral-300 p-5 bg-neutral-50 space-y-4">
+              <div className="flex items-center justify-between border-b border-neutral-200 pb-2">
                 <div>
-                  <strong>Ajukan Langsung ke Meja Kurasi Tier-2 Disnakertrans Mimika:</strong> Program akan langsung masuk antrean pemeriksaan silabus agar segera ditayangkan ke Katalog Skillhub Daerah.
+                  <label className="block text-xs font-bold uppercase tracking-wider text-neutral-900 font-mono">
+                    Poster Flyer / Brosur Promosi Program (Gaya Shopee)
+                  </label>
+                  <p className="text-[11px] text-neutral-500">
+                    Brosur visual akan ditampilkan sebagai banner raksasa di katalog & halaman detail program.
+                  </p>
                 </div>
-              </label>
+                <span className="text-[10px] font-mono font-bold px-2 py-0.5 bg-neutral-900 text-white">
+                  Rasio 16:9 Landscape
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
+                <div className="space-y-3">
+                  <div>
+                    <span className="text-[10px] font-mono font-bold uppercase text-neutral-600 block mb-1">
+                      Unggah Berkas Flyer Kustom (Maks. 10 MB):
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/png, image/jpeg, image/webp"
+                      onChange={handleFlyerUpload}
+                      disabled={uploadingFlyer}
+                      className="text-xs text-neutral-700 file:mr-3 file:py-1.5 file:px-3 file:border file:border-neutral-300 file:text-xs file:font-bold file:uppercase file:bg-white file:text-neutral-800 hover:file:bg-neutral-100 cursor-pointer"
+                    />
+                    {uploadingFlyer && (
+                      <span className="text-[10px] font-mono text-amber-600 block mt-1 animate-pulse">
+                        Mengunggah flyer ke server...
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <span className="text-[10px] font-mono font-bold uppercase text-neutral-600 block">
+                      Atau Pilih Template Poster Standar:
+                    </span>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setCoverImageUrl('/images/flyers/alat_berat_flyer.jpg')}
+                        className={`px-2.5 py-1 text-[10px] font-mono font-bold uppercase border cursor-pointer ${
+                          coverImageUrl === '/images/flyers/alat_berat_flyer.jpg'
+                            ? 'bg-neutral-900 text-white border-neutral-900'
+                            : 'bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-100'
+                        }`}
+                      >
+                        🚜 Alat Berat & Tambang
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCoverImageUrl('/images/flyers/welding_flyer.jpg')}
+                        className={`px-2.5 py-1 text-[10px] font-mono font-bold uppercase border cursor-pointer ${
+                          coverImageUrl === '/images/flyers/welding_flyer.jpg'
+                            ? 'bg-neutral-900 text-white border-neutral-900'
+                            : 'bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-100'
+                        }`}
+                      >
+                        ⚡ Juru Las 6G Pipa
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Pratinjau Flyer */}
+                <div className="space-y-1.5">
+                  <span className="text-[10px] font-mono font-bold uppercase text-neutral-600 block">
+                    Pratinjau Brosur Terpilih:
+                  </span>
+                  <div className="relative h-36 w-full border border-neutral-400 overflow-hidden bg-neutral-900">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={coverImageUrl}
+                      alt="Pratinjau Flyer"
+                      className="w-full h-full object-cover object-center"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Kedaulatan Lembaga Terverifikasi (Trusted Provider Direct Publish) */}
+            <div className="pt-2 border-t border-neutral-200">
+              <div className="p-3.5 bg-emerald-50 border border-emerald-300 text-emerald-950 flex items-start gap-2.5 text-xs">
+                <ShieldCheck className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
+                <div className="space-y-0.5 leading-relaxed">
+                  <div className="font-bold uppercase tracking-wide text-emerald-900 font-mono">
+                    Lembaga Terverifikasi Disnakertrans Mimika (Katalog Instan)
+                  </div>
+                  <p className="text-emerald-800">
+                    Sebagai lembaga pelatihan terakreditasi resmi, setiap kurikulum atau sertifikasi yang Anda terbitkan akan <strong>langsung aktif tayang di Katalog Publik Skillhub Mimika</strong> tanpa perlu antrean kurasi berulang.
+                  </p>
+                </div>
+              </div>
             </div>
 
             <div className="pt-4 border-t border-neutral-200 flex justify-end">
@@ -537,7 +666,7 @@ function CreateProgramOrBatchContent() {
                 disabled={submitting}
                 className="px-6 py-2.5 bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-colors cursor-pointer"
               >
-                <span>{submitting ? 'Menyimpan Program...' : 'Simpan & Daftarkan Program'}</span>
+                <span>{submitting ? 'Menerbitkan Program...' : 'Terbitkan Program ke Katalog Skillhub'}</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             </div>
@@ -646,19 +775,137 @@ function CreateProgramOrBatchContent() {
                 </div>
 
                 {fundingType === 'MANDIRI_BERBAYAR' && (
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-neutral-900 mb-1">
-                      Biaya Pendaftaran / Investasi (Rp)
-                    </label>
-                    <input
-                      type="number"
-                      min={0}
-                      value={priceAmount}
-                      onChange={(e) => setPriceAmount(Number(e.target.value))}
-                      className="w-full border border-neutral-300 p-2.5 text-xs text-neutral-900 focus:border-neutral-900 focus:outline-none font-mono"
-                    />
+                  <div className="border border-neutral-300 bg-neutral-50 p-4 space-y-4">
+                    <div className="flex items-center gap-2">
+                      <Building2 className="w-4 h-4 text-neutral-800" />
+                      <span className="text-xs font-bold uppercase tracking-wider text-neutral-900">
+                        Rekening Bank & Pembayaran Lembaga (Mandiri)
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold uppercase tracking-wider text-neutral-900 mb-1">
+                          Biaya Pelatihan / Siswa (Rp) <span className="text-red-600">*</span>
+                        </label>
+                        <input
+                          type="number"
+                          min={0}
+                          required
+                          value={priceAmount}
+                          onChange={(e) => setPriceAmount(Number(e.target.value))}
+                          className="w-full border border-neutral-300 p-2.5 text-xs text-neutral-900 focus:border-neutral-900 focus:outline-none bg-white font-mono"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold uppercase tracking-wider text-neutral-900 mb-1">
+                          Nama Bank Penampung <span className="text-red-600">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="Contoh: BANK PAPUA / BANK MANDIRI"
+                          value={bankName}
+                          onChange={(e) => setBankName(e.target.value)}
+                          className="w-full border border-neutral-300 p-2.5 text-xs text-neutral-900 focus:border-neutral-900 focus:outline-none bg-white font-mono"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold uppercase tracking-wider text-neutral-900 mb-1">
+                          Nomor Rekening Balai / LPK <span className="text-red-600">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="Contoh: 100-234-56789-0"
+                          value={bankAccountNumber}
+                          onChange={(e) => setBankAccountNumber(e.target.value)}
+                          className="w-full border border-neutral-300 p-2.5 text-xs text-neutral-900 focus:border-neutral-900 focus:outline-none bg-white font-mono"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold uppercase tracking-wider text-neutral-900 mb-1">
+                          Atas Nama Pemilik Rekening <span className="text-red-600">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="Contoh: LPK VOKASI TEKNIK MIMIKA"
+                          value={bankAccountHolder}
+                          onChange={(e) => setBankAccountHolder(e.target.value)}
+                          className="w-full border border-neutral-300 p-2.5 text-xs text-neutral-900 focus:border-neutral-900 focus:outline-none bg-white"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-neutral-900 mb-1">
+                        Instruksi Transfer & Format Berita
+                      </label>
+                      <textarea
+                        rows={2}
+                        placeholder="Contoh: Sertakan berita transfer: NIK-NAMA_LENGKAP. Slip pembayaran diunggah di web atau diserahkan ke kasir balai."
+                        value={paymentInstructions}
+                        onChange={(e) => setPaymentInstructions(e.target.value)}
+                        className="w-full border border-neutral-300 p-2.5 text-xs text-neutral-900 focus:border-neutral-900 focus:outline-none bg-white resize-none"
+                      />
+                    </div>
                   </div>
                 )}
+
+                {/* Kebijakan Seleksi & Penerimaan Siswa */}
+                <div className="space-y-3 pt-2">
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-neutral-900">
+                      Alur Penerimaan Peserta & Perlindungan Kuota Workshop
+                    </label>
+                    <p className="text-[11px] text-neutral-500 mt-0.5">
+                      Standar vokasi industri: Kuota fisik hanya terkunci setelah berkas atau pembayaran divalidasi oleh Balai di Meja Seleksi.
+                    </p>
+                  </div>
+
+                  <div className="border border-neutral-300 bg-neutral-50 p-4 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <ClipboardCheck className="w-4 h-4 text-neutral-900" />
+                      <span className="text-xs font-bold uppercase tracking-wider text-neutral-900">
+                        {fundingType === 'MANDIRI_BERBAYAR'
+                          ? 'Skema Berbayar: Verifikasi Pembayaran & Pelunasan Balai'
+                          : 'Skema APBD / Beasiswa: Seleksi KTP Mimika & Tes Wawancara Balai'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-neutral-600 leading-relaxed">
+                      {fundingType === 'MANDIRI_BERBAYAR' ? (
+                        <>
+                          Pendaftar masuk ke status <strong>Menunggu Pembayaran (PENDING_PAYMENT)</strong>. Talenta dapat transfer ke rekening lembaga dan mengunggah slip bukti bayar. Pengelola Balai mengonfirmasi keabsahan pembayaran pada <strong>Meja Seleksi</strong> untuk mengubah status menjadi <strong>ADMITTED (Resmi Diterima)</strong> dan mengunci kuota kursi.
+                        </>
+                      ) : (
+                        <>
+                          Pendaftar masuk ke status <strong>Terdaftar (REGISTERED)</strong>. Talenta diarahkan menghubungi narahubung Balai via WhatsApp untuk penjadwalan verifikasi fisik KTP Mimika dan wawancara minat. Pengelola Balai meloloskan siswa melalui <strong>Meja Seleksi</strong> untuk mengubah status menjadi <strong>ADMITTED (Resmi Diterima)</strong> dan mengunci kuota kursi.
+                        </>
+                      )}
+                    </p>
+                  </div>
+
+                  <div className="bg-white border border-neutral-200 p-3">
+                    <label className="block text-xs font-bold uppercase tracking-wider text-neutral-900 mb-1">
+                      Estimasi Tanggal Pengumuman Hasil Seleksi / Batas Verifikasi (Opsional)
+                    </label>
+                    <p className="text-[11px] text-neutral-500 mb-2">
+                      Tanggal ini akan ditampilkan di kartu talenta agar pendaftar mengetahui batas waktu verifikasi berkas atau pelunasan.
+                    </p>
+                    <input
+                      type="date"
+                      value={announcementDate}
+                      onChange={(e) => setAnnouncementDate(e.target.value)}
+                      className="w-full sm:w-64 border border-neutral-300 p-2 text-xs text-neutral-900 focus:border-neutral-900 focus:outline-none bg-white font-mono"
+                    />
+                  </div>
+                </div>
 
                 {/* Fasilitas Kesejahteraan (Pills) */}
                 <div className="space-y-2 pt-2">

@@ -24,7 +24,8 @@ import {
   FileText,
   Sparkles,
   Search,
-  Filter
+  Filter,
+  ClipboardCheck
 } from 'lucide-react';
 
 export default function ProviderDashboardPage() {
@@ -276,11 +277,19 @@ export default function ProviderDashboardPage() {
 
                   <div className="flex items-center gap-2">
                     <Link
+                      href={`/provider/batches/${batch.id}`}
+                      className="px-3.5 py-2 border border-neutral-300 hover:border-neutral-900 bg-white hover:bg-neutral-50 text-neutral-900 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors"
+                    >
+                      <ClipboardCheck className="w-3.5 h-3.5 text-neutral-700" />
+                      <span>Meja Seleksi</span>
+                    </Link>
+
+                    <Link
                       href={`/provider/batches/${batch.id}/graduation`}
                       className="px-3.5 py-2 bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors"
                     >
-                      <Award className="w-3.5 h-3.5" />
-                      <span>Meja Kelulusan & Peserta</span>
+                      <Award className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Kelulusan & BNSP</span>
                     </Link>
                   </div>
                 </div>
@@ -297,7 +306,7 @@ export default function ProviderDashboardPage() {
                 Katalog Program Lembaga
               </h2>
               <p className="text-xs text-neutral-500">
-                Daftar kurikulum kejuruan yang telah Anda daftarkan ke Meja Kurasi Tier-2 Disnakertrans Mimika.
+                Daftar kurikulum kejuruan & sertifikasi resmi lembaga Anda yang aktif di Katalog Skillhub Mimika.
               </p>
             </div>
           </div>
@@ -307,7 +316,7 @@ export default function ProviderDashboardPage() {
               <BookOpen className="w-8 h-8 text-neutral-400 mx-auto" />
               <div className="text-xs font-bold text-neutral-700 uppercase">Belum Ada Program Pelatihan</div>
               <p className="text-xs text-neutral-500 max-w-sm mx-auto">
-                Mulai susun kurikulum pelatihan dan daftarkan ke kurasi Disnaker melalui Studio Program.
+                Mulai susun kurikulum pelatihan dan terbitkan langsung ke Katalog Skillhub melalui Studio Program.
               </p>
             </div>
           ) : (
@@ -319,17 +328,17 @@ export default function ProviderDashboardPage() {
                       <span className="text-[10px] font-mono font-bold text-neutral-600 bg-neutral-100 px-2 py-0.5 border border-neutral-200">
                         {prog.programCode}
                       </span>
-                      {prog.approvalStatus === 'APPROVED' ? (
+                      {prog.approvalStatus === 'APPROVED' || prog.status === 'PUBLISHED' ? (
                         <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 bg-emerald-50 text-emerald-900 border border-emerald-300">
-                          APPROVED TIER-2
+                          TAYANG DI KATALOG (AKTIF)
                         </span>
                       ) : prog.approvalStatus === 'REJECTED' ? (
                         <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 bg-red-50 text-red-900 border border-red-300">
                           REJECTED
                         </span>
                       ) : (
-                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 bg-amber-50 text-amber-900 border border-amber-300">
-                          PENDING KURASI
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 bg-neutral-100 text-neutral-800 border border-neutral-300">
+                          DRAF PROGRAM
                         </span>
                       )}
                     </div>

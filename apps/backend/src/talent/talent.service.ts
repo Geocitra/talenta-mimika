@@ -126,7 +126,11 @@ export class TalentService {
       return tx.talent.update({
         where: { id: userId },
         data: {
-          phone: dto.phone,
+          phone: dto.phone !== undefined ? dto.phone : undefined,
+          birthPlace: dto.birthPlace !== undefined ? dto.birthPlace : undefined,
+          birthDate: dto.birthDate ? new Date(dto.birthDate) : undefined,
+          domicile: dto.domicile !== undefined ? dto.domicile : undefined,
+          isLocal: dto.isLocal !== undefined ? dto.isLocal : undefined,
           bio: dto.bio,
           avatarUrl: dto.avatarUrl !== undefined ? dto.avatarUrl : undefined,
           education: dto.education !== undefined ? (dto.education as any) : undefined,

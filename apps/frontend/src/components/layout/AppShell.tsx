@@ -31,6 +31,7 @@ interface AppShellProps {
   onTabChange?: (tab: any) => void;
   curationBadge?: number;
   pendingEmployersBadge?: number;
+  pendingProvidersBadge?: number;
 }
 
 export default function AppShell({
@@ -41,6 +42,7 @@ export default function AppShell({
   onTabChange,
   curationBadge,
   pendingEmployersBadge,
+  pendingProvidersBadge,
 }: AppShellProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const pathname = usePathname();
@@ -55,7 +57,7 @@ export default function AppShell({
   const navItems = [
     ...(userRole === 'TALENT'
       ? [
-          { name: 'Profil Talenta Saya', href: '/talent', icon: UserCheck },
+          { name: 'Profil Talenta Saya', href: '/talent', icon: UserCheck, exact: true },
           { name: 'Katalog Pelatihan & Sertifikasi', href: '/talent/trainings', icon: GraduationCap },
         ]
       : []),
@@ -77,7 +79,7 @@ export default function AppShell({
       ? [
           { name: 'Dasbor Master Data', href: '/admin?tab=OVERVIEW', icon: Database, tab: 'OVERVIEW' },
           { name: 'Verifikasi Perusahaan', href: '/admin?tab=EMPLOYERS', icon: ShieldCheck, tab: 'EMPLOYERS', badge: pendingEmployersBadge },
-          { name: 'Pelatihan Daerah', href: '/admin?tab=TRAININGS', icon: GraduationCap, tab: 'TRAININGS' },
+          { name: 'Verifikasi Balai & LSP', href: '/admin?tab=PROVIDERS', icon: Building2, tab: 'PROVIDERS', badge: pendingProvidersBadge },
           { name: 'Manajemen Akun', href: '/admin?tab=USERS', icon: Users, tab: 'USERS' },
           { name: 'Master Keahlian', href: '/admin?tab=SKILLS', icon: Wrench, tab: 'SKILLS' },
           { name: 'Kurasi Jurusan', href: '/admin?tab=CURATION', icon: Inbox, tab: 'CURATION', badge: curationBadge },
@@ -88,14 +90,14 @@ export default function AppShell({
       ? [
           { name: 'Command Center', href: '/admin?tab=OVERVIEW', icon: BarChart3, tab: 'OVERVIEW' },
           { name: 'Verifikasi Perusahaan', href: '/admin?tab=EMPLOYERS', icon: ShieldCheck, tab: 'EMPLOYERS', badge: pendingEmployersBadge },
-          { name: 'Katalog Pelatihan Daerah', href: '/admin?tab=TRAININGS', icon: GraduationCap, tab: 'TRAININGS' },
+          { name: 'Verifikasi Balai & LSP', href: '/admin?tab=PROVIDERS', icon: Building2, tab: 'PROVIDERS', badge: pendingProvidersBadge },
         ]
       : []),
     ...(userRole === 'EXECUTIVE'
       ? [
           { name: 'Pusat Intelijen Pimpinan', href: '/admin?tab=OVERVIEW', icon: BarChart3, tab: 'OVERVIEW' },
           { name: 'Verifikasi Perusahaan', href: '/admin?tab=EMPLOYERS', icon: ShieldCheck, tab: 'EMPLOYERS', badge: pendingEmployersBadge },
-          { name: 'Katalog Pelatihan Daerah', href: '/admin?tab=TRAININGS', icon: GraduationCap, tab: 'TRAININGS' },
+          { name: 'Verifikasi Balai & LSP', href: '/admin?tab=PROVIDERS', icon: Building2, tab: 'PROVIDERS', badge: pendingProvidersBadge },
         ]
       : []),
   ];
@@ -132,7 +134,7 @@ export default function AppShell({
                     ? item.tab === activeTab
                     : item.exact
                     ? pathname === item.href
-                    : pathname === item.href || (item.href !== '/employer' && pathname.startsWith(item.href));
+                    : pathname === item.href || (item.href !== '/employer' && item.href !== '/provider' && item.href !== '/talent' && pathname.startsWith(item.href));
 
                   if (item.tab && onTabChange) {
                     return (
@@ -243,7 +245,7 @@ export default function AppShell({
                   ? item.tab === activeTab
                   : item.exact
                   ? pathname === item.href
-                  : pathname === item.href || (item.href !== '/employer' && pathname.startsWith(item.href));
+                  : pathname === item.href || (item.href !== '/employer' && item.href !== '/provider' && item.href !== '/talent' && pathname.startsWith(item.href));
 
                 if (item.tab && onTabChange) {
                   return (

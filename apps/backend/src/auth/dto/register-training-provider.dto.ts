@@ -16,7 +16,7 @@ export class RegisterTrainingProviderDto {
 
   @IsOptional()
   @IsString()
-  @MinLength(8, { message: 'Kata sandi minimal 8 karakter jika diisi.' })
+  @MinLength(6, { message: 'Kata sandi minimal 6 karakter jika diisi.' })
   password?: string;
 
   @IsString()

@@ -24,6 +24,10 @@ interface PreFlightReviewModalProps {
     fullName: string;
     nik: string;
     phone: string;
+    birthPlace?: string;
+    birthDate?: string;
+    domicile?: string;
+    isLocal?: boolean;
     bio: string;
     education: any[];
     workExperience: any[];
@@ -33,6 +37,7 @@ interface PreFlightReviewModalProps {
     organizations?: string;
     portfolioUrl?: string;
     workPreferences: string;
+    desiredJobRoles?: string[];
     preferredLocation?: string;
   };
 }
@@ -115,8 +120,25 @@ export function PreFlightReviewModal({
                   <p className="font-bold text-neutral-900 font-mono">{data.nik || '-'}</p>
                 </div>
                 <div>
-                  <span className="text-neutral-500 text-[10px] block">Nomor WhatsApp:</span>
+                  <span className="text-neutral-500 text-[10px] block">Tempat, Tanggal Lahir (TTL):</span>
+                  <p className="font-bold text-neutral-900">
+                    {data.birthPlace ? `${data.birthPlace}, ` : ''}
+                    {data.birthDate ? new Date(data.birthDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '-'}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-neutral-500 text-[10px] block">Nomor WhatsApp / HP:</span>
                   <p className="font-bold text-neutral-900">{data.phone || '-'}</p>
+                </div>
+                <div>
+                  <span className="text-neutral-500 text-[10px] block">Domisili / Distrik:</span>
+                  <p className="font-bold text-neutral-900">{data.domicile || 'Kabupaten Mimika'}</p>
+                </div>
+                <div>
+                  <span className="text-neutral-500 text-[10px] block">Kategori Tenaga Kerja:</span>
+                  <p className={`font-bold text-[11px] ${data.isLocal !== false ? 'text-emerald-700' : 'text-neutral-700'}`}>
+                    {data.isLocal !== false ? '✓ Tenaga Kerja Lokal (Afirmasi Mimika)' : 'Tenaga Kerja Non-Lokal'}
+                  </p>
                 </div>
                 <div>
                   <span className="text-neutral-500 text-[10px] block">Status Pas Foto:</span>
@@ -144,7 +166,7 @@ export function PreFlightReviewModal({
                     <div>
                       <span className="font-bold text-neutral-900">{edu.institution}</span>
                       <span className="text-neutral-500 text-[11px] block">
-                        {edu.degree} - {edu.major} (Lulus {edu.graduationYear})
+                        {edu.degree} {edu.major ? `- ${edu.major}` : ''} (Lulus {edu.graduationYear})
                       </span>
                     </div>
 
@@ -262,6 +284,14 @@ export function PreFlightReviewModal({
               <div>
                 <span className="text-neutral-500 block text-[10px] uppercase font-bold">Tautan Portofolio:</span>
                 <p className="text-neutral-800 font-mono text-[10px] truncate">{data.portfolioUrl || '-'}</p>
+              </div>
+              <div className="sm:col-span-2">
+                <span className="text-neutral-500 block text-[10px] uppercase font-bold">Posisi / Pekerjaan yang Diminati:</span>
+                <p className="text-neutral-800 font-medium">
+                  {data.desiredJobRoles && data.desiredJobRoles.length > 0
+                    ? data.desiredJobRoles.join(', ')
+                    : 'Terbuka untuk segala jenis pekerjaan (Umum)'}
+                </p>
               </div>
               <div className="sm:col-span-2">
                 <span className="text-neutral-500 block text-[10px] uppercase font-bold">Preferensi Pola Kerja:</span>

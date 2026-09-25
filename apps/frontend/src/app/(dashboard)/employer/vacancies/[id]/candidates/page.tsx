@@ -448,6 +448,22 @@ export default function CandidateDiscoveryPage() {
                 }`}>
                   {vacancy?.opportunityType === 'INTERNSHIP' ? 'Pemagangan Vokasi' : 'Pekerjaan Reguler'}
                 </span>
+
+                {/* Badge Sasaran Tenaga Kerja (Afirmasi) */}
+                {vacancy?.targetWorkforce === 'LOCAL_ONLY' ? (
+                  <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-900 border border-emerald-300 flex items-center gap-1">
+                    <ShieldCheck className="w-3 h-3 text-emerald-700" />
+                    Khusus Tenaga Kerja Lokal (Afirmasi OAP)
+                  </span>
+                ) : vacancy?.targetWorkforce === 'NON_LOCAL' ? (
+                  <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-sky-50 text-sky-900 border border-sky-300">
+                    Tenaga Kerja Non-Lokal / Nasional
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-neutral-100 text-neutral-800 border border-neutral-300">
+                    Terbuka Umum (Lokal &amp; Non-Lokal)
+                  </span>
+                )}
                 
                 {/* Badge Status Rekrutmen */}
                 {isFinalized ? (
@@ -536,10 +552,10 @@ export default function CandidateDiscoveryPage() {
 
               <div>
                 <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500 block">
-                  Penempatan & Zona Kerja
+                  Pola Jadwal & Shift Kerja
                 </span>
                 <span className="font-semibold text-neutral-800">
-                  {vacancy.workZone ? vacancy.workZone.replace(/_/g, ' ') : 'TIMIKA KOTA'} &bull; {vacancy.workSchedule ? vacancy.workSchedule.replace(/_/g, ' ') : 'NORMAL DAY'}
+                  {vacancy.workSchedule ? vacancy.workSchedule.replace(/_/g, ' ') : 'NORMAL DAY'}
                 </span>
               </div>
 
@@ -657,7 +673,16 @@ export default function CandidateDiscoveryPage() {
                         <p className="text-xs text-neutral-600 mt-0.5">
                           Pendidikan: <span className="font-semibold text-neutral-800">{cand.lastEducationDegree}</span> &bull; 
                           Pengalaman: <span className="font-semibold text-neutral-800">{(cand.totalExperienceMonths / 12).toFixed(1)} Tahun ({cand.totalExperienceMonths} Bulan)</span>
+                          {cand.domicile && (
+                            <> &bull; Domisili: <span className="font-semibold text-neutral-800">{cand.domicile}</span></>
+                          )}
+                          &bull; Status: <span className={`font-semibold ${cand.isLocal !== false ? 'text-emerald-800' : 'text-neutral-700'}`}>{cand.isLocal !== false ? 'Lokal Mimika' : 'Non-Lokal'}</span>
                         </p>
+                        {cand.socialDna?.desiredJobRoles && cand.socialDna.desiredJobRoles.length > 0 && (
+                          <p className="text-[11px] text-neutral-500 mt-1">
+                            Minat Posisi: <span className="font-semibold text-emerald-800">{cand.socialDna.desiredJobRoles.join(', ')}</span>
+                          </p>
+                        )}
                       </div>
                     </div>
 
@@ -935,7 +960,16 @@ export default function CandidateDiscoveryPage() {
                         <p className="text-xs text-neutral-600 mt-0.5">
                           Pendidikan: <span className="font-semibold text-neutral-800">{cand.lastEducationDegree}</span> &bull; 
                           Pengalaman: <span className="font-semibold text-neutral-800">{(cand.totalExperienceMonths / 12).toFixed(1)} Tahun ({cand.totalExperienceMonths} Bulan)</span>
+                          {cand.domicile && (
+                            <> &bull; Domisili: <span className="font-semibold text-neutral-800">{cand.domicile}</span></>
+                          )}
+                          &bull; Status: <span className={`font-semibold ${cand.isLocal !== false ? 'text-emerald-800' : 'text-neutral-700'}`}>{cand.isLocal !== false ? 'Lokal Mimika' : 'Non-Lokal'}</span>
                         </p>
+                        {cand.socialDna?.desiredJobRoles && cand.socialDna.desiredJobRoles.length > 0 && (
+                          <p className="text-[11px] text-neutral-500 mt-1">
+                            Minat Posisi: <span className="font-semibold text-neutral-800">{cand.socialDna.desiredJobRoles.join(', ')}</span>
+                          </p>
+                        )}
                       </div>
                     </div>
 
@@ -1281,7 +1315,7 @@ export default function CandidateDiscoveryPage() {
                           </span>
                         </div>
                         <p className="text-[11px] text-neutral-500 mt-0.5">
-                          Pendidikan: {cand.lastEducationDegree} &bull; Pengalaman: {(cand.totalExperienceMonths / 12).toFixed(1)} Thn &bull; Kesesuaian: <strong className="font-mono">{cand.overallScore}%</strong>
+                          Pendidikan: {cand.lastEducationDegree} &bull; Pengalaman: {(cand.totalExperienceMonths / 12).toFixed(1)} Thn {cand.domicile ? `• Domisili: ${cand.domicile}` : ''} &bull; Kesesuaian: <strong className="font-mono">{cand.overallScore}%</strong>
                         </p>
                       </div>
                     </div>
@@ -1494,6 +1528,21 @@ export default function CandidateDiscoveryPage() {
                 <p className="text-xs text-neutral-600">
                   {contactCandidate.lastEducationDegree || 'Pendidikan Terdaftar'} &bull; {(contactCandidate.totalExperienceMonths / 12).toFixed(1)} Thn Pengalaman Kerja
                 </p>
+                {(contactCandidate.birthPlace || contactCandidate.birthDate) && (
+                  <p className="text-[11px] text-neutral-500">
+                    TTL: <strong className="text-neutral-700">{contactCandidate.birthPlace ? `${contactCandidate.birthPlace}, ` : ''}{contactCandidate.birthDate ? new Date(contactCandidate.birthDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}</strong>
+                  </p>
+                )}
+                {contactCandidate.domicile && (
+                  <p className="text-[11px] text-neutral-500">
+                    Domisili: <strong className="text-neutral-700">{contactCandidate.domicile}</strong>
+                  </p>
+                )}
+                {contactCandidate.socialDna?.desiredJobRoles && contactCandidate.socialDna.desiredJobRoles.length > 0 && (
+                  <p className="text-[11px] text-neutral-600">
+                    Target Profesi: <strong className="text-emerald-800">{contactCandidate.socialDna.desiredJobRoles.join(', ')}</strong>
+                  </p>
+                )}
                 {contactCandidate.bio && (
                   <p className="text-[11px] text-neutral-500 italic line-clamp-2 border-l-2 border-neutral-300 pl-2 mt-1">
                     &ldquo;{contactCandidate.bio}&rdquo;

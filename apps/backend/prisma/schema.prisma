@@ -76,10 +76,16 @@ enum ProgramApprovalStatus {
 
 enum BatchEnrollmentStatus {
   REGISTERED
+  PENDING_PAYMENT
   ADMITTED
   REJECTED_SELECTION
   COMPLETED
   DROPPED_OUT
+}
+
+enum AdmissionPolicy {
+  INSTANT_ADMISSION
+  CURATED_SELECTION
 }
 
 enum EmploymentContractType {
@@ -100,6 +106,12 @@ enum WorkSchedule {
   NORMAL_DAY
   SHIFT_24H
   ROSTER_FIELD
+}
+
+enum TargetWorkforce {
+  ALL        // Terbuka untuk Umum (Lokal & Non-Lokal)
+  LOCAL_ONLY // Khusus Tenaga Kerja Lokal (Afirmasi OAP Mimika)
+  NON_LOCAL  // Tenaga Kerja Non-Lokal / Nasional
 }
 
 // ==========================================
@@ -143,7 +155,10 @@ model Talent {
   id                      String   @id @db.Uuid
   nik                     String   @unique @db.VarChar(16)
   fullName                String   @map("full_name") @db.VarChar(255)
+  birthPlace              String?  @map("birth_place") @db.VarChar(100)
   birthDate               DateTime @map("birth_date") @db.Date
+  domicile                String?  @db.VarChar(255)
+  isLocal                 Boolean  @default(true) @map("is_local")
   phone                   String?  @db.VarChar(20)
   bio                     String?  @db.Text
   avatarUrl               String?  @map("avatar_url") @db.VarChar(500)
@@ -192,8 +207,11 @@ model Employer {
   
   // Profil Usaha & Skala
   industrySector     String?            @map("industry_sector") @db.VarChar(150)
-  companySize        CompanySize        @default(SCALE_1_10) @map("company_size")
-  employeeCount      Int?               @default(10) @map("employee_count") // Nilai median numerik
+  companySize             CompanySize        @default(SCALE_1_10) @map("company_size")
+  employeeCount           Int?               @default(10) @map("employee_count") // Nilai total numerik
+  employeeCountPapua      Int?               @default(0) @map("employee_count_papua") // Karyawan Warga Papua (OAP)
+  employeeCountForeign    Int?               @default(0) @map("employee_count_foreign") // Karyawan Asing (TKA)
+  employeeCountNational   Int?               @default(0) @map("employee_count_national") // Karyawan Lainnya (Nasional)
   companyBio         String?            @map("company_bio") @db.Text
   websiteUrl         String?            @map("website_url") @db.VarChar(255)
   
@@ -258,6 +276,7 @@ model JobVacancy {
   isSameAsOfficeLocation Boolean         @default(true) @map("is_same_as_office_location")
   workZone               WorkZone        @default(TIMIKA_KOTA) @map("work_zone")
   workSchedule           WorkSchedule    @default(NORMAL_DAY) @map("work_schedule")
+  targetWorkforce        TargetWorkforce @default(ALL) @map("target_workforce") // Sasaran Afirmasi Tenaga Kerja
   jobLocationLat         Float?          @map("job_location_lat")
   jobLocationLng         Float?          @map("job_location_lng")
 
@@ -321,13 +340,16 @@ enum TrainingDeliveryMode {
 }
 
 enum TrainingCategory {
-  K3_PERTAMBANGAN
-  ALAT_BERAT
   WELDING
+  ALAT_BERAT
+  K3_PERTAMBANGAN
   MEKANIK
+  ELEKTRIKAL
   DIGITAL_IT
   LOGISTIK
+  KONSTRUKSI
   HOSPITALITY
+  OTOMOTIF
 }
 
 enum TrainingProgramStatus {
@@ -484,6 +506,11 @@ model TrainingEnrollment {
   certificateUrl         String?                  @map("certificate_url") @db.Text
   qrCodeHash             String?                  @map("qr_code_hash") @db.VarChar(255)
 
+  // Verifikasi Pembayaran & Seleksi
+  paymentProofUrl        String?                  @map("payment_proof_url") @db.Text
+  paymentConfirmedAt     DateTime?                @map("payment_confirmed_at")
+  selectionNotes         String?                  @map("selection_notes") @db.Text
+
   completedAt            DateTime?                @map("completed_at")
   createdAt              DateTime                 @default(now()) @map("created_at")
   updatedAt              DateTime                 @updatedAt @map("updated_at")
@@ -554,6 +581,16 @@ model TrainingBatch {
 
   // Fasilitas Kesejahteraan (Pills)
   welfareBenefits    Json                @default("[]") @map("welfare_benefits")
+
+  // Kebijakan Penerimaan Peserta
+  admissionPolicy    AdmissionPolicy     @default(CURATED_SELECTION) @map("admission_policy")
+  announcementDate   DateTime?           @map("announcement_date") @db.Date
+
+  // Rekening Pembayaran Lembaga (Khusus Mandiri / Berbayar)
+  bankName            String?            @map("bank_name") @db.VarChar(100)
+  bankAccountNumber   String?            @map("bank_account_number") @db.VarChar(100)
+  bankAccountHolder   String?            @map("bank_account_holder") @db.VarChar(150)
+  paymentInstructions String?            @map("payment_instructions") @db.Text
 
   // Tanggal & Lokasi
   registrationStart  DateTime            @map("registration_start") @db.Date
@@ -655,7 +692,7 @@ model MasterMajor {
 }
 
 // ==========================================
-// 17. MODEL KARANTINA USULAN JURUSAN BARU (WARGA)
+// 17. MODEL KARANTINA USULAN JURUSAN BARU (TALENT)
 // ==========================================
 model MajorSuggestion {
   id               String   @id @default(uuid()) @db.Uuid
@@ -664,7 +701,7 @@ model MajorSuggestion {
   inferredCategory String?  @map("inferred_category") @db.VarChar(100)
   inputCount       Int      @default(1) @map("input_count")
   status           String   @default("PENDING") @db.VarChar(50) // PENDING, APPROVED, REJECTED
-  sampleInputs     Json     @default("[]") @map("sample_inputs") // Riwayat variasi typo warga
+  sampleInputs     Json     @default("[]") @map("sample_inputs") // Riwayat variasi typo talent
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
 

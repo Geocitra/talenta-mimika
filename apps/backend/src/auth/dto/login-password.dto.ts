@@ -6,6 +6,6 @@ export class LoginPasswordDto {
   identifier: string; // Bisa berupa email atau 16 digit NIK
 
   @IsString()
-  @MinLength(8, { message: 'Kata sandi minimal 8 karakter.' })
+  @MinLength(6, { message: 'Kata sandi minimal 6 karakter.' })
   password: string;
 }

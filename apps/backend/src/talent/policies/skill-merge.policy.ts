@@ -12,9 +12,9 @@ export interface SkillRecord {
  * 
  * Invarian Bisnis:
  * 1. Keahlian yang bertanda `isLmsVerified: true` (hasil kelulusan pelatihan resmi Disnakertrans)
- *    TIDAK BOLEH dihapus atau diturunkan validitasnya oleh form pembaruan mandiri warga.
+ *    TIDAK BOLEH dihapus atau diturunkan validitasnya oleh form pembaruan mandiri talent.
  * 2. Keahlian mandiri (self-declared) bebas ditambah, diubah level kemahirannya, atau dihapus sewaktu-waktu.
- * 3. Jika warga menginput nama keahlian yang sama dengan keahlian terverifikasi LMS,
+ * 3. Jika talent menginput nama keahlian yang sama dengan keahlian terverifikasi LMS,
  *    identitas verifikasi LMS dan nomor sertifikat tetap dipertahankan.
  */
 export class SkillMergePolicy {

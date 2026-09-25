@@ -126,6 +126,40 @@ export class TrainingProviderController {
     return this.graduationService.getBatchParticipants(batchId, req.user.id, isDisnaker);
   }
 
+  @Get('batches/:batchId/candidates')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.TRAINING_PROVIDER)
+  async getBatchCandidates(
+    @Req() req: any,
+    @Param('batchId', ParseUUIDPipe) batchId: string,
+  ) {
+    return this.providerService.getBatchCandidates(req.user.id, batchId);
+  }
+
+  @Patch('batches/:batchId/enrollments/:enrollmentId/admit')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.TRAINING_PROVIDER)
+  async admitCandidate(
+    @Req() req: any,
+    @Param('batchId', ParseUUIDPipe) batchId: string,
+    @Param('enrollmentId', ParseUUIDPipe) enrollmentId: string,
+    @Body('notes') notes?: string,
+  ) {
+    return this.providerService.admitCandidate(req.user.id, batchId, enrollmentId, notes);
+  }
+
+  @Patch('batches/:batchId/enrollments/:enrollmentId/reject')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.TRAINING_PROVIDER)
+  async rejectCandidate(
+    @Req() req: any,
+    @Param('batchId', ParseUUIDPipe) batchId: string,
+    @Param('enrollmentId', ParseUUIDPipe) enrollmentId: string,
+    @Body('reason') reason?: string,
+  ) {
+    return this.providerService.rejectCandidate(req.user.id, batchId, enrollmentId, reason);
+  }
+
   @Post('batches/:batchId/graduate')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.TRAINING_PROVIDER, Role.DISNAKER_ADMIN, Role.SUPERADMIN)
@@ -188,6 +222,58 @@ export class TrainingProviderController {
       data: {
         fileName: uniqueFileName,
         logoUrl: fileUrl,
+      },
+    };
+  }
+
+  // ==================== UPLOAD FLYER / BANNER PROGRAM PROMOSI ====================
+  @Post('upload-flyer')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.TRAINING_PROVIDER, Role.DISNAKER_ADMIN, Role.SUPERADMIN)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 10 * 1024 * 1024 }, // Maksimal 10 MB
+      fileFilter: (_req, file, callback) => {
+        const isImage =
+          file.mimetype.startsWith('image/') ||
+          /\.(jpg|jpeg|png|webp)$/i.test(file.originalname);
+        if (!isImage) {
+          return callback(
+            new BadRequestException('Format flyer harus berupa JPG, PNG, atau WEBP.'),
+            false,
+          );
+        }
+        callback(null, true);
+      },
+    }),
+  )
+  async uploadProgramFlyer(@UploadedFile() file: any, @Req() req: any) {
+    if (!file) {
+      throw new BadRequestException('Berkas flyer gambar wajib diunggah.');
+    }
+
+    let uploadDir = path.resolve(process.cwd(), 'uploads', 'flyers');
+    if (!fs.existsSync(uploadDir)) {
+      const alt = path.resolve(process.cwd(), 'apps', 'backend', 'uploads', 'flyers');
+      if (fs.existsSync(path.dirname(alt))) uploadDir = alt;
+    }
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+
+    const ext = path.extname(file.originalname).toLowerCase() || '.jpg';
+    const uniqueFileName = `flyer-${req.user.id}-${Date.now()}${ext}`;
+    const targetPath = path.join(uploadDir, uniqueFileName);
+
+    fs.writeFileSync(targetPath, file.buffer);
+    const fileUrl = `/uploads/flyers/${uniqueFileName}`;
+
+    return {
+      status: 'success',
+      message: 'Flyer banner promosi berhasil diunggah.',
+      data: {
+        fileName: uniqueFileName,
+        flyerUrl: fileUrl,
       },
     };
   }

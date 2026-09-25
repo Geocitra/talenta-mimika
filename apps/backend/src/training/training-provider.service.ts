@@ -15,6 +15,8 @@ import {
   InstitutionType,
   ProgramApprovalStatus,
   TrainingProgramStatus,
+  AdmissionPolicy,
+  BatchEnrollmentStatus,
 } from '@prisma/client';
 import * as crypto from 'crypto';
 
@@ -114,9 +116,15 @@ export class TrainingProviderService {
     const randomHex = crypto.randomBytes(2).toString('hex').toUpperCase();
     const programCode = `#MT-${catPrefix}-${randomHex}`;
 
-    const approvalStatus = dto.submitForApproval
-      ? ProgramApprovalStatus.PENDING_APPROVAL
-      : ProgramApprovalStatus.DRAFT;
+    // MODEL KEDAULATAN PENERBITAN (TRUSTED PROVIDER MODEL)
+    // Lembaga berstatus APPROVED langsung terbit secara instan ke katalog publik tanpa antrean kurasi berulang
+    const isApprovedProvider = provider.verificationStatus === VerificationStatus.APPROVED;
+    const approvalStatus = isApprovedProvider
+      ? ProgramApprovalStatus.APPROVED
+      : (dto.submitForApproval ? ProgramApprovalStatus.PENDING_APPROVAL : ProgramApprovalStatus.DRAFT);
+    const status = isApprovedProvider
+      ? TrainingProgramStatus.PUBLISHED
+      : TrainingProgramStatus.DRAFT;
 
     const program = await this.prisma.trainingProgram.create({
       data: {
@@ -137,17 +145,17 @@ export class TrainingProviderService {
         totalLessonHours: dto.totalLessonHours || 160,
         coverImageUrl: dto.coverImageUrl,
         approvalStatus,
-        status: TrainingProgramStatus.DRAFT,
+        status,
       },
       include: { provider: true, batches: true },
     });
 
-    this.logger.log(`[Studio Program] Lembaga ${provider.institutionName} membuat program "${program.title}" (${program.programCode})`);
+    this.logger.log(`[Studio Program] Lembaga ${provider.institutionName} membuat program "${program.title}" (${program.programCode}) - status: ${status}`);
 
     return {
       status: 'success',
       message: dto.submitForApproval
-        ? `Program "${program.title}" berhasil dibuat dan diajukan ke Meja Kurasi Tier-2 Disnakertrans Mimika.`
+        ? `Program "${program.title}" berhasil diterbitkan dan langsung tayang di katalog Skillhub Mimika (Kedaulatan Lembaga Terverifikasi).`
         : `Draf program "${program.title}" berhasil disimpan.`,
       data: program,
     };
@@ -241,6 +249,12 @@ export class TrainingProviderService {
         trainingMethod: dto.trainingMethod,
         quota: dto.quota,
         welfareBenefits: dto.welfareBenefits ? (dto.welfareBenefits as any) : [],
+        admissionPolicy: dto.admissionPolicy || AdmissionPolicy.CURATED_SELECTION,
+        announcementDate: dto.announcementDate ? new Date(dto.announcementDate) : null,
+        bankName: dto.bankName || null,
+        bankAccountNumber: dto.bankAccountNumber || null,
+        bankAccountHolder: dto.bankAccountHolder || null,
+        paymentInstructions: dto.paymentInstructions || null,
         registrationStart: new Date(dto.registrationStart),
         registrationEnd: new Date(dto.registrationEnd),
         trainingStart: new Date(dto.trainingStart),
@@ -252,11 +266,11 @@ export class TrainingProviderService {
       },
     });
 
-    this.logger.log(`[Batch Cohort] Dibuka batch "${batch.batchName}" pada program ${program.title} (kuota: ${batch.quota})`);
+    this.logger.log(`[Batch Cohort] Dibuka batch "${batch.batchName}" pada program ${program.title} (kuota: ${batch.quota}, policy: ${batch.admissionPolicy})`);
 
     return {
       status: 'success',
-      message: `Batch "${batch.batchName}" berhasil dibuka dengan kuota ${batch.quota} kursi.`,
+      message: `Batch "${batch.batchName}" berhasil dibuka dengan kuota ${batch.quota} kursi (${batch.admissionPolicy}).`,
       data: batch,
     };
   }
@@ -282,6 +296,14 @@ export class TrainingProviderService {
     if (dto.trainingMethod !== undefined) updateData.trainingMethod = dto.trainingMethod;
     if (dto.quota !== undefined) updateData.quota = dto.quota;
     if (dto.welfareBenefits !== undefined) updateData.welfareBenefits = dto.welfareBenefits;
+    if (dto.admissionPolicy !== undefined) updateData.admissionPolicy = dto.admissionPolicy;
+    if (dto.announcementDate !== undefined) {
+      updateData.announcementDate = dto.announcementDate ? new Date(dto.announcementDate) : null;
+    }
+    if (dto.bankName !== undefined) updateData.bankName = dto.bankName;
+    if (dto.bankAccountNumber !== undefined) updateData.bankAccountNumber = dto.bankAccountNumber;
+    if (dto.bankAccountHolder !== undefined) updateData.bankAccountHolder = dto.bankAccountHolder;
+    if (dto.paymentInstructions !== undefined) updateData.paymentInstructions = dto.paymentInstructions;
     if (dto.registrationStart !== undefined) updateData.registrationStart = new Date(dto.registrationStart);
     if (dto.registrationEnd !== undefined) updateData.registrationEnd = new Date(dto.registrationEnd);
     if (dto.trainingStart !== undefined) updateData.trainingStart = new Date(dto.trainingStart);
@@ -333,6 +355,200 @@ export class TrainingProviderService {
       status: 'success',
       total: batches.length,
       data: batches,
+    };
+  }
+
+  // ==================== MEJA SELEKSI & PENERIMAAN PENDAFTAR ====================
+  async getBatchCandidates(providerUserId: string, batchId: string) {
+    const batch = await this.prisma.trainingBatch.findUnique({
+      where: { id: batchId },
+      include: {
+        program: {
+          select: {
+            id: true,
+            title: true,
+            programCode: true,
+            providerId: true,
+          },
+        },
+        enrollments: {
+          include: {
+            talent: {
+              select: {
+                id: true,
+                fullName: true,
+                nik: true,
+                phone: true,
+                avatarUrl: true,
+                domicile: true,
+                user: {
+                  select: { email: true },
+                },
+              },
+            },
+          },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+    });
+
+    if (!batch) {
+      throw new NotFoundException('Batch cohort tidak ditemukan.');
+    }
+
+    if (batch.program.providerId !== providerUserId) {
+      throw new ForbiddenException('Akses ditolak: Batch milik lembaga pelatihan lain.');
+    }
+
+    const admittedCount = batch.enrollments.filter(
+      (e) => e.selectionStatus === BatchEnrollmentStatus.ADMITTED,
+    ).length;
+
+    const registeredCount = batch.enrollments.filter(
+      (e) => e.selectionStatus === BatchEnrollmentStatus.REGISTERED,
+    ).length;
+
+    const pendingPaymentCount = batch.enrollments.filter(
+      (e) => e.selectionStatus === BatchEnrollmentStatus.PENDING_PAYMENT,
+    ).length;
+
+    const rejectedCount = batch.enrollments.filter(
+      (e) => e.selectionStatus === BatchEnrollmentStatus.REJECTED_SELECTION,
+    ).length;
+
+    return {
+      status: 'success',
+      data: {
+        batchId: batch.id,
+        batchName: batch.batchName,
+        fundingType: batch.fundingType,
+        priceAmount: batch.priceAmount,
+        quota: batch.quota,
+        isOpen: batch.isOpen,
+        bankName: batch.bankName,
+        bankAccountNumber: batch.bankAccountNumber,
+        bankAccountHolder: batch.bankAccountHolder,
+        summary: {
+          quota: batch.quota,
+          admittedCount,
+          seatsLeft: Math.max(0, batch.quota - admittedCount),
+          registeredCount,
+          pendingPaymentCount,
+          rejectedCount,
+          totalApplicants: batch.enrollments.length,
+        },
+        candidates: batch.enrollments.map((enr) => ({
+          enrollmentId: enr.id,
+          talentId: enr.talentId,
+          fullName: enr.talent.fullName,
+          nik: enr.talent.nik,
+          phone: enr.talent.phone,
+          email: enr.talent.user?.email,
+          avatarUrl: enr.talent.avatarUrl,
+          domicile: enr.talent.domicile || 'Kabupaten Mimika',
+          selectionStatus: enr.selectionStatus,
+          paymentProofUrl: enr.paymentProofUrl,
+          paymentConfirmedAt: enr.paymentConfirmedAt,
+          selectionNotes: enr.selectionNotes,
+          enrolledAt: enr.createdAt,
+        })),
+      },
+    };
+  }
+
+  async admitCandidate(providerUserId: string, batchId: string, enrollmentId: string, notes?: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const batch = await tx.trainingBatch.findUnique({
+        where: { id: batchId },
+        include: { program: true },
+      });
+
+      if (!batch) throw new NotFoundException('Batch tidak ditemukan.');
+      if (batch.program.providerId !== providerUserId) {
+        throw new ForbiddenException('Akses ditolak: Batch milik lembaga pelatihan lain.');
+      }
+
+      const currentAdmitted = await tx.trainingEnrollment.count({
+        where: {
+          batchId,
+          selectionStatus: BatchEnrollmentStatus.ADMITTED,
+        },
+      });
+
+      if (currentAdmitted >= batch.quota) {
+        throw new BadRequestException(`Kuota kursi kelas untuk batch ini sudah penuh (${batch.quota} kursi). Tidak dapat menerima siswa lagi.`);
+      }
+
+      const enrollment = await tx.trainingEnrollment.findUnique({
+        where: { id: enrollmentId },
+        include: { talent: true },
+      });
+
+      if (!enrollment || enrollment.batchId !== batchId) {
+        throw new NotFoundException('Pendaftaran siswa tidak ditemukan di batch ini.');
+      }
+
+      const updatedEnrollment = await tx.trainingEnrollment.update({
+        where: { id: enrollmentId },
+        data: {
+          selectionStatus: BatchEnrollmentStatus.ADMITTED,
+          paymentConfirmedAt: new Date(),
+          selectionNotes: notes || 'Resmi diterima oleh balai pelatihan.',
+        },
+      });
+
+      // Jika kuota tepat terpenuhi, tutup pendaftaran batch
+      if (currentAdmitted + 1 >= batch.quota) {
+        await tx.trainingBatch.update({
+          where: { id: batchId },
+          data: { isOpen: false },
+        });
+      }
+
+      this.logger.log(`[Admission] Siswa ${enrollment.talent.fullName} resmi DITERIMA (ADMITTED) pada batch ${batch.batchName} (${currentAdmitted + 1}/${batch.quota})`);
+
+      return {
+        status: 'success',
+        message: `Siswa "${enrollment.talent.fullName}" resmi DITERIMA (ADMITTED). Kursi kelas telah terkunci (${currentAdmitted + 1}/${batch.quota}).`,
+        data: updatedEnrollment,
+      };
+    });
+  }
+
+  async rejectCandidate(providerUserId: string, batchId: string, enrollmentId: string, reason?: string) {
+    const batch = await this.prisma.trainingBatch.findUnique({
+      where: { id: batchId },
+      include: { program: true },
+    });
+
+    if (!batch) throw new NotFoundException('Batch tidak ditemukan.');
+    if (batch.program.providerId !== providerUserId) {
+      throw new ForbiddenException('Akses ditolak: Batch milik lembaga pelatihan lain.');
+    }
+
+    const enrollment = await this.prisma.trainingEnrollment.findUnique({
+      where: { id: enrollmentId },
+      include: { talent: true },
+    });
+
+    if (!enrollment || enrollment.batchId !== batchId) {
+      throw new NotFoundException('Pendaftaran siswa tidak ditemukan di batch ini.');
+    }
+
+    const updated = await this.prisma.trainingEnrollment.update({
+      where: { id: enrollmentId },
+      data: {
+        selectionStatus: BatchEnrollmentStatus.REJECTED_SELECTION,
+        selectionNotes: reason || 'Tidak memenuhi kualifikasi seleksi / pembayaran tidak valid.',
+      },
+    });
+
+    this.logger.log(`[Admission] Pendaftaran ${enrollment.talent.fullName} DITOLAK pada batch ${batch.batchName}: ${reason}`);
+
+    return {
+      status: 'success',
+      message: `Pendaftaran "${enrollment.talent.fullName}" ditandai TIDAK LOLOS.`,
+      data: updated,
     };
   }
 

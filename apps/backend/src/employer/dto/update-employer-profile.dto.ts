@@ -24,6 +24,21 @@ export class UpdateEmployerProfileDto {
   employeeCount?: number;
 
   @IsOptional()
+  @IsInt()
+  @Min(0)
+  employeeCountPapua?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  employeeCountForeign?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  employeeCountNational?: number;
+
+  @IsOptional()
   @IsString()
   address?: string;
 

@@ -57,7 +57,7 @@ export class AnalyticsService {
       { stage: 'Diserap / Didekati Industri', count: uniqueApproachedCount },
     ];
 
-    // 3. ANALISIS SKILL GAP (DEMAND INDUSTRI VS SUPPLY WARGA MIMIKA)
+    // 3. ANALISIS SKILL GAP (DEMAND INDUSTRI VS SUPPLY TALENT MIMIKA)
     const skillGaps = await this.calculateSkillGaps();
 
     // 4. DISTRIBUSI SEKTOR INDUSTRI

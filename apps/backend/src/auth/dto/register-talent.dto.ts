@@ -7,6 +7,7 @@ import {
   Matches,
   IsISO8601,
   MinLength,
+  IsBoolean,
 } from 'class-validator';
 
 export class RegisterTalentDto {
@@ -16,7 +17,7 @@ export class RegisterTalentDto {
 
   @IsOptional()
   @IsString()
-  @MinLength(8, { message: 'Kata sandi minimal 8 karakter jika diisi.' })
+  @MinLength(6, { message: 'Kata sandi minimal 6 karakter jika diisi.' })
   password?: string;
 
   @IsString()
@@ -31,4 +32,20 @@ export class RegisterTalentDto {
   @IsISO8601({}, { message: 'Format tanggal lahir harus YYYY-MM-DD.' })
   @IsNotEmpty({ message: 'Tanggal lahir wajib diisi.' })
   birthDate: string;
+
+  @IsOptional()
+  @IsString()
+  birthPlace?: string;
+
+  @IsOptional()
+  @IsString()
+  phone?: string;
+
+  @IsOptional()
+  @IsString()
+  domicile?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isLocal?: boolean;
 }

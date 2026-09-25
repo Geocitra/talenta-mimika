@@ -17,12 +17,16 @@ async function bootstrap() {
   const certsDir = path.join(uploadsDir, 'certificates');
   const nibsDir = path.join(uploadsDir, 'nibs');
   const logosDir = path.join(uploadsDir, 'logos');
+  const flyersDir = path.join(uploadsDir, 'flyers');
+  const paymentsDir = path.join(uploadsDir, 'payments');
 
   if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
   if (!fs.existsSync(avatarsDir)) fs.mkdirSync(avatarsDir, { recursive: true });
   if (!fs.existsSync(certsDir)) fs.mkdirSync(certsDir, { recursive: true });
   if (!fs.existsSync(nibsDir)) fs.mkdirSync(nibsDir, { recursive: true });
   if (!fs.existsSync(logosDir)) fs.mkdirSync(logosDir, { recursive: true });
+  if (!fs.existsSync(flyersDir)) fs.mkdirSync(flyersDir, { recursive: true });
+  if (!fs.existsSync(paymentsDir)) fs.mkdirSync(paymentsDir, { recursive: true });
 
   // Middleware global: Cross-Origin headers untuk akses asset statis & streaming
   app.use((_req, res, next) => {
@@ -33,8 +37,11 @@ async function bootstrap() {
 
   // PROTECTED VARIATIONS: Hapus express.static untuk /uploads, /talents/certificates, dan /uploads/nibs
   // Seluruh dokumen sensitif PDF wajib melalui Controller berotentikasi JWT Guard.
-  // Hanya foto avatar publik yang diperbolehkan diakses statis:
+  // Hanya foto avatar, logo, flyer, dan bukti pembayaran yang diperbolehkan diakses statis:
   app.use('/talents/avatar', express.static(avatarsDir));
+  app.use('/uploads/flyers', express.static(flyersDir));
+  app.use('/uploads/logos', express.static(logosDir));
+  app.use('/uploads/payments', express.static(paymentsDir));
 
   // Global DTO Validation
   app.useGlobalPipes(

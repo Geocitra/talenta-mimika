@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, Suspense } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { apiFetch, getFullMediaUrl } from '@/lib/api';
 import AppShell from '@/components/layout/AppShell';
 import { AlertModal, useAlertModal } from '@/components/AlertModal';
+import ShopeeCampaignBillboard from '@/components/ShopeeCampaignBillboard';
 import {
   GraduationCap,
   BookOpen,
@@ -41,9 +42,14 @@ import {
   Utensils,
   Car,
   ChevronRight,
+  ChevronLeft,
   RotateCcw,
   Info,
   ShieldAlert,
+  Upload,
+  CreditCard,
+  FileText,
+  Eye,
 } from 'lucide-react';
 
 // =========================================================================
@@ -135,8 +141,9 @@ const CERT_TYPE_LABELS: Record<string, string> = {
   KOMBINASI_LENGKAP: 'Kombinasi STTP + BNSP + K3',
 };
 
-export default function TalentTrainingsPage() {
+function TalentTrainingsContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { alertProps, showAlert } = useAlertModal();
 
   // Core State
@@ -144,7 +151,16 @@ export default function TalentTrainingsPage() {
   const [catalog, setCatalog] = useState<any[]>([]);
   const [myEnrollments, setMyEnrollments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'MARKETPLACE' | 'MY_ENROLLMENTS'>('MARKETPLACE');
+  const [activeTab, setActiveTab] = useState<'MARKETPLACE' | 'MY_ENROLLMENTS'>(() => {
+    return searchParams.get('tab') === 'MY_ENROLLMENTS' ? 'MY_ENROLLMENTS' : 'MARKETPLACE';
+  });
+
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab === 'MY_ENROLLMENTS') {
+      setActiveTab('MY_ENROLLMENTS');
+    }
+  }, [searchParams]);
 
   // Filter State
   const [searchQuery, setSearchQuery] = useState('');
@@ -155,17 +171,23 @@ export default function TalentTrainingsPage() {
   const [filterPaidOnly, setFilterPaidOnly] = useState(false);
   const [selectedCertTypes, setSelectedCertTypes] = useState<string[]>([]);
 
-  // Modal State: Detail Program (4 Tab)
-  const [detailProgram, setDetailProgram] = useState<any | null>(null);
-  const [detailModalTab, setDetailModalTab] = useState<'ABOUT' | 'PROVIDER' | 'BATCHES' | 'CAREER'>('ABOUT');
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(6);
 
-  // Modal State: Konfirmasi Pendaftaran Batch
-  const [enrollModalBatch, setEnrollModalBatch] = useState<any | null>(null);
-  const [enrollModalProgram, setEnrollModalProgram] = useState<any | null>(null);
-  const [enrolling, setEnrolling] = useState(false);
-
-  // Modal State: WhatsApp Hand-Off Berhasil
-  const [whatsAppOutreachModal, setWhatsAppOutreachModal] = useState<any | null>(null);
+  // Reset ke halaman 1 jika kriteria filter atau ukuran per halaman berganti
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [
+    selectedCategory,
+    searchQuery,
+    selectedDelivery,
+    selectedMethods,
+    filterFreeOnly,
+    filterPaidOnly,
+    selectedCertTypes,
+    itemsPerPage,
+  ]);
 
   useEffect(() => {
     loadData();
@@ -208,6 +230,30 @@ export default function TalentTrainingsPage() {
     }
 
     setLoading(false);
+  };
+
+  const [uploadingSlipEnrollmentId, setUploadingSlipEnrollmentId] = useState<string | null>(null);
+
+  const handleUploadPaymentProof = async (enrollmentId: string, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    setUploadingSlipEnrollmentId(enrollmentId);
+    try {
+      const res = await apiFetch(`/trainings/enrollments/${enrollmentId}/payment-proof`, {
+        method: 'POST',
+        body: formData,
+      });
+      if (res.status === 'success') {
+        showAlert('success', 'Bukti Bayar Berhasil Diunggah', 'Bukti transfer Anda telah terkirim. Pengelola balai akan memverifikasi dan memperbarui status pendaftaran Anda.');
+        await loadData();
+      } else {
+        showAlert('error', 'Gagal Mengunggah', res.message || 'Terjadi kesalahan sistem.');
+      }
+    } catch (err: any) {
+      showAlert('error', 'Gagal Mengunggah', err.message);
+    } finally {
+      setUploadingSlipEnrollmentId(null);
+    }
   };
 
   // -------------------------------------------------------------
@@ -319,53 +365,35 @@ export default function TalentTrainingsPage() {
     return counts;
   }, [catalog]);
 
-  // -------------------------------------------------------------
-  // ACTION: EKSEKUSI PENDAFTARAN BATCH & HAND-OFF WHATSAPP
-  // -------------------------------------------------------------
-  const handleConfirmBatchEnrollment = async () => {
-    if (!enrollModalBatch || !enrollModalProgram) return;
+  // Kalkulasi Pagination
+  const totalPages = Math.max(1, Math.ceil(filteredCatalog.length / itemsPerPage));
+  const startIdx = (currentPage - 1) * itemsPerPage;
 
-    setEnrolling(true);
-    try {
-      const res = await apiFetch(
-        `/trainings/${enrollModalProgram.id}/batches/${enrollModalBatch.id}/enroll`,
-        {
-          method: 'POST',
-        }
-      );
+  const paginatedCatalog = useMemo(() => {
+    return filteredCatalog.slice(startIdx, startIdx + itemsPerPage);
+  }, [filteredCatalog, startIdx, itemsPerPage]);
 
-      if (res.status === 'success') {
-        const outreachData = res.data?.whatsAppOutreach || {
-          picName: enrollModalProgram.provider?.picName || 'Admin Pendaftaran',
-          picPhone: enrollModalProgram.provider?.picPhone || '',
-          draftMessage: `Halo, saya ${profile?.fullName} (NIK: ${profile?.nik}) telah mendaftar di ${enrollModalProgram.title} (${enrollModalBatch.batchName}).`,
-          whatsAppDirectUrl: enrollModalProgram.provider?.picPhone
-            ? `https://wa.me/${enrollModalProgram.provider.picPhone.replace(/\D/g, '')}`
-            : '#',
-        };
+  const paginationPages = useMemo(() => {
+    if (totalPages <= 5) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+    if (currentPage <= 3) {
+      return [1, 2, 3, 4, '...', totalPages];
+    }
+    if (currentPage >= totalPages - 2) {
+      return [1, '...', totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
+    }
+    return [1, '...', currentPage - 1, currentPage, currentPage + 1, '...', totalPages];
+  }, [currentPage, totalPages]);
 
-        // Tutup modal pendaftaran dan buka modal WhatsApp Hand-Off
-        setEnrollModalBatch(null);
-        setEnrollModalProgram(null);
-        setDetailProgram(null);
-
-        setWhatsAppOutreachModal({
-          programTitle: enrollModalProgram.title,
-          batchName: enrollModalBatch.batchName,
-          institutionName:
-            enrollModalProgram.provider?.institutionName || 'Balai Pelatihan Terdaftar',
-          outreach: outreachData,
-        });
-
-        // Muat ulang pendaftaran saya
-        await loadData();
-      } else {
-        showAlert('error', 'Pendaftaran Gagal', res.message || 'Terjadi kesalahan sistem.');
-      }
-    } catch (err: any) {
-      showAlert('error', 'Pendaftaran Gagal', err.message);
-    } finally {
-      setEnrolling(false);
+  const handlePageChange = (newPage: number) => {
+    if (newPage < 1 || newPage > totalPages) return;
+    setCurrentPage(newPage);
+    const target = document.getElementById('catalog-results-top');
+    if (target) {
+      const yOffset = -90;
+      const y = target.getBoundingClientRect().top + window.pageYOffset + yOffset;
+      window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
     }
   };
 
@@ -451,6 +479,11 @@ export default function TalentTrainingsPage() {
         {/* ========================================================================= */}
         {activeTab === 'MARKETPLACE' && (
           <div className="space-y-8">
+            {/* ------------------------------------------------------------- */}
+            {/* SHOPEE-STYLE GIANT CAMPAIGN BILLBOARD CAROUSEL                */}
+            {/* ------------------------------------------------------------- */}
+            <ShopeeCampaignBillboard programs={catalog} />
+
             {/* ------------------------------------------------------------- */}
             {/* CAROUSEL / GRID 10 RUMPUN KEJURUAN RESMI                      */}
             {/* ------------------------------------------------------------- */}
@@ -687,11 +720,17 @@ export default function TalentTrainingsPage() {
               </aside>
 
               {/* CARD GRID PROGRAM TRANS-PAPUA (SWISS ARCHITECTURAL UI) */}
-              <main className="flex-1 space-y-4">
-                {/* Status Bar Hasil Filter */}
+              <main id="catalog-results-top" className="flex-1 space-y-4">
+                {/* Status Bar Hasil Filter & Indikator Halaman */}
                 <div className="flex flex-wrap items-center justify-between gap-3 bg-white border border-neutral-300 px-4 py-3 text-xs">
                   <div className="text-neutral-600">
-                    Menampilkan <strong>{filteredCatalog.length}</strong> program pelatihan terkurasi
+                    {filteredCatalog.length === 0 ? (
+                      <span>Menampilkan <strong>0</strong> program pelatihan terkurasi</span>
+                    ) : (
+                      <span>
+                        Menampilkan program ke-<strong>{startIdx + 1}–{Math.min(startIdx + itemsPerPage, filteredCatalog.length)}</strong> dari total <strong>{filteredCatalog.length}</strong> program
+                      </span>
+                    )}
                     {selectedCategory !== 'ALL' && (
                       <span>
                         {' '}
@@ -702,11 +741,16 @@ export default function TalentTrainingsPage() {
                       </span>
                     )}
                   </div>
-                  {filteredCatalog.length > 0 && (
-                    <div className="text-[11px] font-mono text-neutral-500">
+                  <div className="flex items-center gap-3">
+                    {totalPages > 1 && (
+                      <span className="text-[11px] font-mono font-semibold text-neutral-700 bg-neutral-100 px-2 py-0.5 border border-neutral-300">
+                        Hal {currentPage} / {totalPages}
+                      </span>
+                    )}
+                    <div className="text-[11px] font-mono text-neutral-500 hidden sm:block">
                       Standardisasi SKKNI & Kurasi Disnakertrans
                     </div>
-                  )}
+                  </div>
                 </div>
 
                 {filteredCatalog.length === 0 ? (
@@ -727,8 +771,9 @@ export default function TalentTrainingsPage() {
                     </button>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                    {filteredCatalog.map((prog) => {
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    {paginatedCatalog.map((prog) => {
                       const openBatches = (prog.batches || []).filter((b: any) => b.isOpen);
                       const hasFree = openBatches.some(
                         (b: any) =>
@@ -744,53 +789,84 @@ export default function TalentTrainingsPage() {
                       return (
                         <div
                           key={prog.id}
-                          className="bg-white border border-neutral-300 hover:border-neutral-900 p-5 flex flex-col justify-between space-y-4 transition-all hover:shadow-xs group"
+                          className="bg-white border border-neutral-300 hover:border-neutral-900 flex flex-col justify-between transition-all hover:shadow-md group overflow-hidden"
                         >
-                          {/* Sisi Atas: Identitas Lembaga & Status */}
-                          <div className="space-y-3">
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex flex-wrap items-center gap-1.5">
-                                <span className="text-[10px] font-mono font-bold px-2 py-0.5 bg-neutral-100 text-neutral-800 border border-neutral-200">
-                                  {prog.programCode || 'PROG-SKILLHUB'}
+                          {/* Top Cover Flyer Banner (Shopee Style) */}
+                          <Link
+                            href={`/talent/trainings/${prog.id}`}
+                            className="block relative h-44 sm:h-48 w-full overflow-hidden bg-neutral-900 cursor-pointer"
+                          >
+                            {prog.coverImageUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={getFullMediaUrl(prog.coverImageUrl)}
+                                alt={prog.title}
+                                className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-300"
+                              />
+                            ) : (
+                              <div className="w-full h-full bg-gradient-to-br from-neutral-800 to-neutral-950 p-5 flex flex-col justify-between">
+                                <span className="text-[10px] font-mono text-amber-400 font-bold uppercase tracking-wider">
+                                  STANDAR DISNAKERTRANS MIMIKA
                                 </span>
-                                <span className="text-[10px] font-bold uppercase px-2 py-0.5 bg-neutral-900 text-white">
-                                  {prog.deliveryMode}
+                                <h4 className="text-sm font-bold text-white uppercase line-clamp-2">
+                                  {prog.title}
+                                </h4>
+                                <span className="text-[10px] text-neutral-400 font-mono">
+                                  {prog.provider?.institutionName || 'Balai Vokasi Mimika'}
                                 </span>
                               </div>
+                            )}
 
-                              {/* Badge Skema Biaya Tercepat */}
+                            {/* Overlay Badges on Flyer */}
+                            <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 flex-wrap">
+                              <span className="text-[10px] font-mono font-bold px-2 py-0.5 bg-neutral-900/90 text-white border border-neutral-700 backdrop-blur-xs">
+                                {prog.programCode || 'PROG-SKILLHUB'}
+                              </span>
+                              {openBatches.some((b: any) => b.admissionPolicy === 'INSTANT_ADMISSION') && (
+                                <span className="text-[10px] font-bold uppercase px-2 py-0.5 bg-amber-400 text-neutral-950 font-mono shadow-xs">
+                                  ⚡ Penerimaan Langsung
+                                </span>
+                              )}
+                              <span className="text-[10px] font-bold uppercase px-2 py-0.5 bg-neutral-900/90 text-neutral-200 border border-neutral-700 backdrop-blur-xs">
+                                {prog.deliveryMode}
+                              </span>
+                            </div>
+
+                            <div className="absolute bottom-2.5 right-2.5">
                               {hasFree ? (
-                                <span className="text-[10px] font-bold uppercase px-2 py-0.5 bg-emerald-50 text-emerald-900 border border-emerald-300">
+                                <span className="text-[10px] font-bold uppercase px-2 py-0.5 bg-emerald-600 text-white shadow-md font-mono">
                                   Gratis APBD
                                 </span>
                               ) : minPrice !== Infinity ? (
-                                <span className="text-[10px] font-bold font-mono px-2 py-0.5 bg-neutral-100 text-neutral-800 border border-neutral-300">
+                                <span className="text-[10px] font-bold font-mono px-2 py-0.5 bg-white text-neutral-900 shadow-md">
                                   Rp {minPrice.toLocaleString('id-ID')}
                                 </span>
-                              ) : (
-                                <span className="text-[10px] font-mono px-2 py-0.5 bg-neutral-100 text-neutral-600">
-                                  Lihat Gelombang
-                                </span>
-                              )}
+                              ) : null}
                             </div>
+                          </Link>
 
-                            {/* Lembaga Penyelenggara */}
-                            <div className="flex items-center gap-2 text-xs text-neutral-600">
-                              <Building2 className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
-                              <span className="font-semibold text-neutral-800 truncate">
-                                {prog.provider?.institutionName || prog.providerName || 'Balai Vokasi Mimika'}
-                              </span>
-                              {prog.provider?.vinNumber && (
-                                <span className="text-[10px] font-mono text-neutral-500 border border-neutral-200 px-1">
-                                  VIN
+                          {/* Sisi Bawah: Konten Card & Lembaga */}
+                          <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
+                            <div className="space-y-3">
+                              {/* Lembaga Penyelenggara */}
+                              <div className="flex items-center gap-2 text-xs text-neutral-600">
+                                <Building2 className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
+                                <span className="font-semibold text-neutral-800 truncate">
+                                  {prog.provider?.institutionName || prog.providerName || 'Balai Vokasi Mimika'}
                                 </span>
-                              )}
-                            </div>
+                                {prog.provider?.vinNumber && (
+                                  <span className="text-[10px] font-mono text-neutral-500 border border-neutral-200 px-1">
+                                    VIN
+                                  </span>
+                                )}
+                              </div>
 
                             {/* Judul Program */}
-                            <h3 className="text-base font-bold uppercase tracking-tight text-neutral-900 group-hover:text-neutral-700 transition-colors leading-snug">
-                              {prog.title}
-                            </h3>
+                            <Link href={`/talent/trainings/${prog.id}`}>
+                              <h3 className="text-base font-bold uppercase tracking-tight text-neutral-900 group-hover:text-neutral-700 transition-colors leading-snug cursor-pointer">
+                                {prog.title}
+                              </h3>
+                            </Link>
 
                             <p className="text-xs text-neutral-600 line-clamp-2 leading-relaxed">
                               {prog.description}
@@ -839,23 +915,111 @@ export default function TalentTrainingsPage() {
                               {CERT_TYPE_LABELS[prog.certificateType] || 'Sertifikat Resmi'}
                             </span>
 
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setDetailProgram(prog);
-                                setDetailModalTab('ABOUT');
-                              }}
+                            <Link
+                              href={`/talent/trainings/${prog.id}`}
                               className="px-4 py-2 bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-bold uppercase tracking-wider inline-flex items-center gap-1.5 cursor-pointer transition-colors shrink-0"
                             >
                               <span>Detail & Batch</span>
                               <ArrowRight className="w-3.5 h-3.5" />
-                            </button>
+                            </Link>
                           </div>
                         </div>
-                      );
+                      </div>
+                    );
                     })}
                   </div>
-                )}
+
+                  {/* KONTROL PAGINATION RESMI (SWISS ARCHITECTURAL STYLE) */}
+                  <div className="bg-white border border-neutral-300 p-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs">
+                    {/* Pemilih Jumlah Per Halaman & Info Ringkas */}
+                    <div className="flex flex-wrap items-center gap-3 text-xs text-neutral-600">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono uppercase text-[11px] text-neutral-500 font-bold">Tampilkan:</span>
+                        <div className="inline-flex border border-neutral-300">
+                          {[6, 12, 24].map((size) => (
+                            <button
+                              key={size}
+                              type="button"
+                              onClick={() => setItemsPerPage(size)}
+                              className={`px-3 py-1 text-xs font-mono font-bold transition-colors cursor-pointer ${
+                                itemsPerPage === size
+                                  ? 'bg-neutral-900 text-white'
+                                  : 'bg-white text-neutral-700 hover:bg-neutral-100'
+                              } ${size !== 6 ? 'border-l border-neutral-300' : ''}`}
+                            >
+                              {size}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <span className="text-neutral-400 hidden sm:inline">|</span>
+
+                      <span className="text-[11px] font-mono text-neutral-500">
+                        {startIdx + 1}–{Math.min(startIdx + itemsPerPage, filteredCatalog.length)} dari {filteredCatalog.length}
+                      </span>
+                    </div>
+
+                    {/* Tombol Navigasi Halaman */}
+                    {totalPages > 1 && (
+                      <nav aria-label="Navigasi Halaman Katalog" className="flex items-center gap-1.5">
+                        {/* Tombol Sebelumnya */}
+                        <button
+                          type="button"
+                          onClick={() => handlePageChange(currentPage - 1)}
+                          disabled={currentPage === 1}
+                          className="px-3 py-1.5 border border-neutral-300 bg-white text-xs font-bold uppercase tracking-wider text-neutral-700 hover:bg-neutral-100 hover:border-neutral-900 disabled:opacity-30 disabled:pointer-events-none transition-colors flex items-center gap-1 cursor-pointer"
+                        >
+                          <ChevronLeft className="w-3.5 h-3.5" />
+                          <span className="hidden md:inline">Sebelumnya</span>
+                        </button>
+
+                        {/* Deretan Nomor Halaman */}
+                        <div className="flex items-center gap-1">
+                          {paginationPages.map((page, idx) => {
+                            if (page === '...') {
+                              return (
+                                <span
+                                  key={`ellipsis-${idx}`}
+                                  className="w-8 h-8 flex items-center justify-center text-xs text-neutral-400 font-mono select-none"
+                                >
+                                  ...
+                                </span>
+                              );
+                            }
+                            const isCurrent = page === currentPage;
+                            return (
+                              <button
+                                key={page}
+                                type="button"
+                                onClick={() => handlePageChange(Number(page))}
+                                className={`w-8 h-8 flex items-center justify-center text-xs font-mono font-bold border transition-colors cursor-pointer ${
+                                  isCurrent
+                                    ? 'bg-neutral-900 text-white border-neutral-900 shadow-xs'
+                                    : 'bg-white text-neutral-700 border-neutral-300 hover:border-neutral-900 hover:bg-neutral-50'
+                                }`}
+                              >
+                                {page}
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        {/* Tombol Berikutnya */}
+                        <button
+                          type="button"
+                          onClick={() => handlePageChange(currentPage + 1)}
+                          disabled={currentPage === totalPages}
+                          className="px-3 py-1.5 border border-neutral-300 bg-white text-xs font-bold uppercase tracking-wider text-neutral-700 hover:bg-neutral-100 hover:border-neutral-900 disabled:opacity-30 disabled:pointer-events-none transition-colors flex items-center gap-1 cursor-pointer"
+                        >
+                          <span className="hidden md:inline">Berikutnya</span>
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        </button>
+                      </nav>
+                    )}
+                  </div>
+                </>
+              )}
               </main>
             </div>
           </div>
@@ -912,24 +1076,47 @@ export default function TalentTrainingsPage() {
                   const picName =
                     enr.program?.provider?.picName || 'Admin Balai';
 
+                  const isAdmitted = enr.selectionStatus === 'ADMITTED';
+                  const isPendingPayment = enr.selectionStatus === 'PENDING_PAYMENT';
+                  const isRegistered = enr.selectionStatus === 'REGISTERED';
+                  const isRejected = enr.selectionStatus === 'REJECTED_SELECTION' || enr.selectionStatus === 'REJECTED';
+
                   return (
                     <div key={enr.id} className="py-6 space-y-4 hover:bg-neutral-50/50 transition-colors">
                       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
                         <div className="space-y-1.5">
                           <div className="flex flex-wrap items-center gap-2">
-                            <span
-                              className={`text-[10px] font-bold uppercase px-2.5 py-0.5 border font-mono ${
-                                isGraduated
-                                  ? 'bg-emerald-50 text-emerald-900 border-emerald-300'
-                                  : enr.selectionStatus === 'ACCEPTED'
-                                  ? 'bg-blue-50 text-blue-900 border-blue-300'
-                                  : enr.selectionStatus === 'REJECTED'
-                                  ? 'bg-red-50 text-red-900 border-red-300'
-                                  : 'bg-neutral-100 text-neutral-800 border-neutral-300'
-                              }`}
-                            >
-                              STATUS: {enr.selectionStatus || enr.status}
-                            </span>
+                            {isGraduated ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase px-2.5 py-0.5 border font-mono bg-emerald-50 text-emerald-900 border-emerald-300">
+                                <Award className="w-3 h-3 text-emerald-700" />
+                                LULUS PELATIHAN (BNSP/STTP)
+                              </span>
+                            ) : isAdmitted ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase px-2.5 py-0.5 border font-mono bg-emerald-50 text-emerald-900 border-emerald-300">
+                                <CheckCircle2 className="w-3 h-3 text-emerald-700" />
+                                RESMI DITERIMA (KURSI TERKUNCI)
+                              </span>
+                            ) : isPendingPayment ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase px-2.5 py-0.5 border font-mono bg-amber-50 text-amber-900 border-amber-300">
+                                <Clock className="w-3 h-3 text-amber-700" />
+                                MENUNGGU PEMBAYARAN
+                              </span>
+                            ) : isRegistered ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase px-2.5 py-0.5 border font-mono bg-blue-50 text-blue-900 border-blue-300">
+                                <Users className="w-3 h-3 text-blue-700" />
+                                MENUNGGU SELEKSI KTP & WAWANCARA
+                              </span>
+                            ) : isRejected ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase px-2.5 py-0.5 border font-mono bg-red-50 text-red-900 border-red-300">
+                                <AlertCircle className="w-3 h-3 text-red-700" />
+                                TIDAK LOLOS SELEKSI
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-bold uppercase px-2.5 py-0.5 border font-mono bg-neutral-100 text-neutral-800 border-neutral-300">
+                                STATUS: {enr.selectionStatus || enr.status}
+                              </span>
+                            )}
+
                             {enr.batch?.batchName && (
                               <span className="text-[10px] font-bold font-mono px-2 py-0.5 bg-neutral-100 text-neutral-700 border border-neutral-200">
                                 {enr.batch.batchName}
@@ -966,7 +1153,7 @@ export default function TalentTrainingsPage() {
                           {picPhone && (
                             <a
                               href={`https://wa.me/${picPhone.replace(/\D/g, '')}?text=${encodeURIComponent(
-                                `Halo ${picName}, saya ${profile?.fullName} ingin menanyakan status pendaftaran program ${enr.program?.title}.`
+                                `Halo ${picName}, saya ${profile?.fullName} ingin mengonfirmasi pendaftaran saya pada program ${enr.program?.title} (${enr.batch?.batchName || ''}).`
                               )}`}
                               target="_blank"
                               rel="noreferrer"
@@ -988,6 +1175,124 @@ export default function TalentTrainingsPage() {
                           )}
                         </div>
                       </div>
+
+                      {/* Banner Pembayaran Mandiri */}
+                      {isPendingPayment && (
+                        <div className="p-4 bg-amber-50 border border-amber-300 text-neutral-900 space-y-3">
+                          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-amber-900">
+                            <CreditCard className="w-4 h-4 text-amber-700" />
+                            <span>Instruksi Transfer & Konfirmasi Pembayaran</span>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs bg-white border border-amber-200 p-3">
+                            <div>
+                              <div className="text-[10px] text-neutral-500 uppercase">Rekening Tujuan</div>
+                              <div className="font-bold text-neutral-900">{enr.batch?.bankName || 'BANK PAPUA'}</div>
+                              <div className="font-mono text-neutral-800">{enr.batch?.bankAccountNumber || '-'}</div>
+                            </div>
+                            <div>
+                              <div className="text-[10px] text-neutral-500 uppercase">Atas Nama</div>
+                              <div className="font-bold text-neutral-900">{enr.batch?.bankAccountHolder || enr.program?.provider?.institutionName || 'Lembaga Pelatihan'}</div>
+                            </div>
+                            <div>
+                              <div className="text-[10px] text-neutral-500 uppercase">Biaya Pendaftaran</div>
+                              <div className="font-bold text-neutral-900 font-mono">
+                                Rp {Number(enr.batch?.priceAmount || 0).toLocaleString('id-ID')}
+                              </div>
+                            </div>
+                          </div>
+
+                          {enr.batch?.paymentInstructions && (
+                            <p className="text-xs text-neutral-600 bg-amber-100/60 p-2 border border-amber-200">
+                              <strong>Catatan:</strong> {enr.batch.paymentInstructions}
+                            </p>
+                          )}
+
+                          {/* Slip Upload / Preview Box */}
+                          <div className="pt-2 border-t border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div className="text-xs">
+                              {enr.paymentProofUrl ? (
+                                <div className="flex items-center gap-2 text-emerald-800 font-medium">
+                                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                                  <span>Slip transfer terunggah. Menunggu verifikasi kasir balai di Meja Seleksi.</span>
+                                </div>
+                              ) : (
+                                <span className="text-amber-900 font-medium">
+                                  Silakan unggah foto/tangkapan layar slip bukti transfer untuk mengunci kursi.
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              {enr.paymentProofUrl && (
+                                <a
+                                  href={enr.paymentProofUrl.startsWith('http') ? enr.paymentProofUrl : `http://localhost:3000${enr.paymentProofUrl}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="px-3 py-1.5 border border-neutral-300 bg-white text-xs font-bold uppercase tracking-wider text-neutral-800 hover:bg-neutral-100 flex items-center gap-1"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                  <span>Lihat Slip</span>
+                                </a>
+                              )}
+
+                              <label className="px-3.5 py-1.5 bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer transition-colors">
+                                <Upload className="w-3.5 h-3.5" />
+                                <span>{uploadingSlipEnrollmentId === enr.id ? 'Mengunggah...' : enr.paymentProofUrl ? 'Ganti Slip' : 'Unggah Slip Bayar'}</span>
+                                <input
+                                  type="file"
+                                  accept="image/*,.pdf"
+                                  className="hidden"
+                                  disabled={uploadingSlipEnrollmentId === enr.id}
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) handleUploadPaymentProof(enr.id, file);
+                                  }}
+                                />
+                              </label>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Banner Jalur Gratis: Menunggu Verifikasi KTP */}
+                      {isRegistered && (
+                        <div className="p-3.5 bg-blue-50 border border-blue-300 text-blue-950 space-y-1.5 text-xs">
+                          <div className="flex items-center gap-2 font-bold uppercase font-mono text-blue-900">
+                            <Users className="w-4 h-4 text-blue-700" />
+                            <span>Tahap Verifikasi Berkas KTP Mimika & Seleksi Fisik</span>
+                          </div>
+                          <p className="leading-relaxed">
+                            Pendaftaran Anda telah tercatat pada sistem Balai. Silakan hubungi narahubung PIC Balai via WhatsApp atau datang langsung ke sekretariat balai untuk verifikasi fisik KTP Mimika dan jadwal seleksi wawancara sebelum kuota terpenuhi.
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Banner Lolos Seleksi: Kursi Terkunci */}
+                      {isAdmitted && (
+                        <div className="p-3.5 bg-emerald-50 border border-emerald-300 text-emerald-950 space-y-1.5 text-xs">
+                          <div className="flex items-center gap-2 font-bold uppercase font-mono text-emerald-900">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-700" />
+                            <span>Selamat! Anda Resmi Diterima (ADMITTED)</span>
+                          </div>
+                          <p className="leading-relaxed">
+                            Pendaftaran Anda telah divalidasi oleh Balai di Meja Seleksi. Kursi fisik workshop pelatihan Anda telah dikunci. Silakan ikuti petunjuk PIC Balai dan siapkan diri mengikuti jadwal pelatihan.
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Banner Ditolak Seleksi */}
+                      {isRejected && (
+                        <div className="p-3.5 bg-neutral-100 border border-neutral-300 text-neutral-800 space-y-1.5 text-xs">
+                          <div className="flex items-center gap-2 font-bold uppercase font-mono text-neutral-900">
+                            <AlertCircle className="w-4 h-4 text-neutral-700" />
+                            <span>Pendaftaran Tidak Lolos Seleksi</span>
+                          </div>
+                          <p className="leading-relaxed">
+                            {enr.selectionNotes || 'Mohon maaf, kuota kursi telah terpenuhi atau persyaratan administratif belum sesuai. Anda dapat mendaftar pada batch kejuruan lainnya.'}
+                          </p>
+                        </div>
+                      )}
 
                       {/* Banner Sertifikat Emas Jika Lulus */}
                       {isGraduated && (
@@ -1030,511 +1335,28 @@ export default function TalentTrainingsPage() {
           </div>
         )}
 
-        {/* ========================================================================= */}
-        {/* MODAL 1: DETAIL PROGRAM KOMPREHENSIF (4 TAB)                              */}
-        {/* ========================================================================= */}
-        {detailProgram && (
-          <div className="fixed inset-0 z-50 bg-neutral-950/70 backdrop-blur-xs flex items-center justify-center p-4">
-            <div className="bg-white border border-neutral-400 max-w-3xl w-full max-h-[90vh] flex flex-col shadow-2xl animate-in fade-in zoom-in-95 duration-150">
-              {/* Header Modal */}
-              <div className="p-5 border-b border-neutral-300 flex items-start justify-between gap-4 bg-neutral-50">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-mono font-bold px-2 py-0.5 bg-neutral-900 text-white">
-                      {detailProgram.programCode}
-                    </span>
-                    <span className="text-[10px] font-bold uppercase px-2 py-0.5 bg-neutral-200 text-neutral-800">
-                      {detailProgram.category}
-                    </span>
-                    <span className="text-[10px] font-bold uppercase px-2 py-0.5 bg-neutral-200 text-neutral-800">
-                      {detailProgram.deliveryMode}
-                    </span>
-                  </div>
-                  <h3 className="text-lg font-bold uppercase text-neutral-900 tracking-tight leading-snug">
-                    {detailProgram.title}
-                  </h3>
-                  <div className="text-xs text-neutral-600 font-semibold">
-                    {detailProgram.provider?.institutionName || detailProgram.providerName}
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setDetailProgram(null)}
-                  className="p-1.5 text-neutral-500 hover:text-neutral-900 border border-neutral-300 hover:border-neutral-900 cursor-pointer"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              {/* 4 Tabs Selector */}
-              <div className="flex border-b border-neutral-300 bg-white font-mono text-xs font-bold uppercase">
-                {[
-                  { id: 'ABOUT', label: '1. Tentang & Silabus' },
-                  { id: 'PROVIDER', label: '2. Penyelenggara' },
-                  { id: 'BATCHES', label: `3. Gelombang Batch (${detailProgram.batches?.length || 0})` },
-                  { id: 'CAREER', label: '4. Dampak Karir & AI' },
-                ].map((t) => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => setDetailModalTab(t.id as any)}
-                    className={`flex-1 py-3 px-3 text-center border-r border-neutral-200 last:border-r-0 cursor-pointer transition-colors ${
-                      detailModalTab === t.id
-                        ? 'bg-neutral-900 text-white'
-                        : 'text-neutral-600 hover:bg-neutral-100'
-                    }`}
-                  >
-                    {t.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* Body Modal (Scrollable) */}
-              <div className="p-6 overflow-y-auto space-y-6 flex-1 text-xs text-neutral-700">
-                {/* TAB 1: TENTANG & SILABUS */}
-                {detailModalTab === 'ABOUT' && (
-                  <div className="space-y-5">
-                    <div className="space-y-2">
-                      <h4 className="font-bold uppercase text-neutral-900 text-xs font-mono">
-                        Deskripsi Kurikulum
-                      </h4>
-                      <p className="text-neutral-600 leading-relaxed whitespace-pre-line">
-                        {detailProgram.description}
-                      </p>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4 bg-neutral-50 p-4 border border-neutral-200">
-                      <div>
-                        <span className="text-[10px] font-mono text-neutral-500 block uppercase">
-                          Durasi Pelatihan
-                        </span>
-                        <div className="font-bold text-neutral-900 text-sm">
-                          {detailProgram.durationDays} Hari Kalender ({detailProgram.totalLessonHours} JP)
-                        </div>
-                      </div>
-                      <div>
-                        <span className="text-[10px] font-mono text-neutral-500 block uppercase">
-                          Sertifikasi yang Diterbitkan
-                        </span>
-                        <div className="font-bold text-neutral-900 text-sm">
-                          {CERT_TYPE_LABELS[detailProgram.certificateType] || detailProgram.certificateType}
-                        </div>
-                      </div>
-                    </div>
-
-                    {detailProgram.syllabus && (
-                      <div className="space-y-2">
-                        <h4 className="font-bold uppercase text-neutral-900 text-xs font-mono">
-                          Silabus & Pokok Bahasan
-                        </h4>
-                        <div className="p-3 bg-neutral-50 border border-neutral-200 font-mono text-neutral-700 leading-relaxed whitespace-pre-line">
-                          {detailProgram.syllabus}
-                        </div>
-                      </div>
-                    )}
-
-                    {detailProgram.requirements && (
-                      <div className="space-y-2">
-                        <h4 className="font-bold uppercase text-neutral-900 text-xs font-mono">
-                          Persyaratan Peserta
-                        </h4>
-                        <div className="p-3 bg-neutral-50 border border-neutral-200 leading-relaxed whitespace-pre-line">
-                          {detailProgram.requirements}
-                        </div>
-                      </div>
-                    )}
-
-                    {Array.isArray(detailProgram.targetSkills) && detailProgram.targetSkills.length > 0 && (
-                      <div className="space-y-2">
-                        <h4 className="font-bold uppercase text-neutral-900 text-xs font-mono">
-                          Keahlian SKKNI yang Dihadiahkan (Terinjeksi Otomatis)
-                        </h4>
-                        <div className="flex flex-wrap gap-2">
-                          {detailProgram.targetSkills.map((sk: any, idx: number) => (
-                            <span
-                              key={idx}
-                              className="px-2.5 py-1 bg-white border border-neutral-300 font-semibold text-neutral-800 flex items-center gap-1.5"
-                            >
-                              <Award className="w-3.5 h-3.5 text-neutral-700" />
-                              <span>{typeof sk === 'string' ? sk : `${sk?.name} (${sk?.level || 'Menengah'})`}</span>
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* TAB 2: PENYELENGGARA */}
-                {detailModalTab === 'PROVIDER' && (
-                  <div className="space-y-5">
-                    <div className="border border-neutral-200 p-4 space-y-3 bg-neutral-50">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-mono font-bold px-2 py-0.5 bg-neutral-900 text-white">
-                          {detailProgram.provider?.institutionType?.replace(/_/g, ' ') || 'LEMBAGA VOKASI'}
-                        </span>
-                        {detailProgram.provider?.accreditation && (
-                          <span className="text-[10px] font-bold uppercase px-2 py-0.5 bg-emerald-100 text-emerald-900 border border-emerald-300">
-                            {detailProgram.provider.accreditation.replace(/_/g, ' ')}
-                          </span>
-                        )}
-                      </div>
-
-                      <h4 className="text-base font-bold uppercase text-neutral-900">
-                        {detailProgram.provider?.institutionName || detailProgram.providerName}
-                      </h4>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 text-neutral-600 font-mono text-[11px]">
-                        <div>
-                          <span>Nomor Izin VIN Kemnaker: </span>
-                          <strong className="text-neutral-900">
-                            {detailProgram.provider?.vinNumber || 'Tervalidasi Disnaker'}
-                          </strong>
-                        </div>
-                        {detailProgram.provider?.bnspLicenseNumber && (
-                          <div>
-                            <span>Lisensi BNSP: </span>
-                            <strong className="text-neutral-900">
-                              {detailProgram.provider.bnspLicenseNumber}
-                            </strong>
-                          </div>
-                        )}
-                      </div>
-
-                      <p className="text-neutral-600 leading-relaxed pt-1">
-                        {detailProgram.provider?.institutionBio ||
-                          'Lembaga Pelatihan Kerja terdaftar dan diawasi secara resmi oleh Disnakertrans Kabupaten Mimika untuk penyelenggaraan vokasi tenaga kerja lokal.'}
-                      </p>
-                    </div>
-
-                    <div className="space-y-2">
-                      <h4 className="font-bold uppercase text-neutral-900 text-xs font-mono">
-                        Lokasi Workshop & Kontak PIC
-                      </h4>
-                      <div className="space-y-2 border border-neutral-200 p-4">
-                        <div className="flex items-start gap-2">
-                          <MapPin className="w-4 h-4 text-neutral-500 shrink-0 mt-0.5" />
-                          <span>{detailProgram.provider?.address || 'Kabupaten Mimika, Papua Tengah'}</span>
-                        </div>
-                        <div className="flex items-start gap-2">
-                          <Users className="w-4 h-4 text-neutral-500 shrink-0 mt-0.5" />
-                          <span>
-                            Narahubung PIC:{' '}
-                            <strong>
-                              {detailProgram.provider?.picName || 'Koordinator Pelatihan'} (
-                              {detailProgram.provider?.picRole || 'Admin'})
-                            </strong>
-                          </span>
-                        </div>
-                        {detailProgram.provider?.picPhone && (
-                          <div className="flex items-start gap-2">
-                            <Phone className="w-4 h-4 text-neutral-500 shrink-0 mt-0.5" />
-                            <span className="font-mono">{detailProgram.provider.picPhone}</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* TAB 3: DAFTAR BATCH COHORT */}
-                {detailModalTab === 'BATCHES' && (
-                  <div className="space-y-4">
-                    <div className="text-xs text-neutral-600">
-                      Pilih salah satu gelombang cohort di bawah ini untuk mendaftar secara resmi melalui platform:
-                    </div>
-
-                    {(!detailProgram.batches || detailProgram.batches.length === 0) ? (
-                      <div className="p-8 text-center border border-neutral-200 bg-neutral-50 space-y-2">
-                        <Clock className="w-8 h-8 text-neutral-400 mx-auto" />
-                        <div className="font-bold uppercase text-neutral-900">
-                          Belum Ada Gelombang Terbuka
-                        </div>
-                        <p className="text-neutral-500">
-                          Lembaga belum menjadwalkan batch cohort baru untuk program ini. Silakan pantau secara berkala.
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        {detailProgram.batches.map((batch: any) => {
-                          const isFree =
-                            batch.fundingType === 'GRATIS_APBD_MIMIKA' ||
-                            batch.fundingType === 'BEASISWA_CSR';
-                          const enrollmentsCount = batch._count?.enrollments || 0;
-                          const seatsLeft = Math.max(0, batch.quota - enrollmentsCount);
-
-                          return (
-                            <div
-                              key={batch.id}
-                              className={`p-4 border transition-all ${
-                                batch.isOpen
-                                  ? 'border-neutral-300 bg-white hover:border-neutral-900'
-                                  : 'border-neutral-200 bg-neutral-50 opacity-60'
-                              }`}
-                            >
-                              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                                <div>
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-bold uppercase text-neutral-900 text-sm">
-                                      {batch.batchName}
-                                    </span>
-                                    <span
-                                      className={`text-[10px] font-bold uppercase px-2 py-0.5 border ${
-                                        isFree
-                                          ? 'bg-emerald-50 text-emerald-900 border-emerald-300'
-                                          : 'bg-neutral-100 text-neutral-800 border-neutral-300 font-mono'
-                                      }`}
-                                    >
-                                      {isFree
-                                        ? 'Gratis APBD / CSR'
-                                        : `Rp ${(Number(batch.priceAmount) || 0).toLocaleString('id-ID')}`}
-                                    </span>
-                                    <span className="text-[10px] font-bold uppercase px-2 py-0.5 bg-neutral-100 text-neutral-700 border border-neutral-200">
-                                      {batch.trainingMethod}
-                                    </span>
-                                  </div>
-
-                                  <div className="text-[11px] text-neutral-600 mt-1 font-mono">
-                                    Sisa Kuota: <strong>{seatsLeft} dari {batch.quota} kursi</strong> &bull;
-                                    Jadwal: {new Date(batch.startDate).toLocaleDateString('id-ID')} s/d{' '}
-                                    {new Date(batch.endDate).toLocaleDateString('id-ID')}
-                                  </div>
-                                </div>
-
-                                {batch.isOpen && seatsLeft > 0 ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setEnrollModalProgram(detailProgram);
-                                      setEnrollModalBatch(batch);
-                                    }}
-                                    className="px-4 py-2 bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer shrink-0 transition-colors"
-                                  >
-                                    <span>Pilih Gelombang Ini</span>
-                                    <ArrowRight className="w-3.5 h-3.5" />
-                                  </button>
-                                ) : (
-                                  <span className="px-3 py-1.5 bg-neutral-200 text-neutral-600 text-xs font-bold uppercase tracking-wider shrink-0">
-                                    {seatsLeft <= 0 ? 'Kuota Penuh' : 'Pendaftaran Tutup'}
-                                  </span>
-                                )}
-                              </div>
-
-                              {/* Fasilitas Kesejahteraan */}
-                              {Array.isArray(batch.welfareBenefits) && batch.welfareBenefits.length > 0 && (
-                                <div className="mt-3 pt-2.5 border-t border-neutral-100 flex flex-wrap items-center gap-2">
-                                  <span className="text-[10px] font-bold uppercase text-neutral-500 font-mono">
-                                    Fasilitas:
-                                  </span>
-                                  {batch.welfareBenefits.map((wId: string) => (
-                                    <span
-                                      key={wId}
-                                      className="text-[10px] px-1.5 py-0.5 bg-neutral-100 text-neutral-800 border border-neutral-200"
-                                    >
-                                      ✓ {WELFARE_LABELS[wId] || wId}
-                                    </span>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* TAB 4: DAMPAK KARIR & AI */}
-                {detailModalTab === 'CAREER' && (
-                  <div className="space-y-4">
-                    <div className="p-4 bg-neutral-50 border border-neutral-300 space-y-3">
-                      <div className="flex items-center gap-2 text-neutral-900 font-bold uppercase font-mono text-xs">
-                        <Sparkles className="w-4 h-4 text-amber-600" />
-                        <span>The Closed-Loop Synergy: Dampak ke Radar Rekrutmen AI</span>
-                      </div>
-                      <p className="text-neutral-600 leading-relaxed">
-                        Platform <strong>MIMIKA TALENTA</strong> menghubungkan meja kelulusan vokasi daerah langsung ke algoritma pencarian kandidat perusahaan tambang & kontraktor (PT Freeport Indonesia, dsb).
-                      </p>
-                      <div className="space-y-2 pt-2 border-t border-neutral-200 text-[11px]">
-                        <div className="flex items-start gap-2">
-                          <Check className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
-                          <span><strong>Verifikasi Otomatis:</strong> Tidak ada risiko sertifikat palsu karena diinjeksi langsung oleh balai terakreditasi.</span>
-                        </div>
-                        <div className="flex items-start gap-2">
-                          <Check className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
-                          <span><strong>Peningkatan Skor Radar 35%:</strong> Vektor keahlian Anda langsung naik drastis sesuai dengan kompetensi SKKNI yang dikuasai.</span>
-                        </div>
-                        <div className="flex items-start gap-2">
-                          <Check className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
-                          <span><strong>Prioritas Panggilan Kerja:</strong> Perusahaan memprioritaskan talenta bersertifikat BNSP dengan riwayat kehadiran penuh.</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Footer Modal */}
-              <div className="p-4 border-t border-neutral-300 flex items-center justify-between bg-neutral-50">
-                <span className="text-[10px] font-mono text-neutral-500 uppercase">
-                  Skillhub Mimika &bull; Terintegrasi Disnakertrans
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setDetailProgram(null)}
-                  className="px-4 py-2 bg-neutral-200 hover:bg-neutral-300 text-neutral-800 text-xs font-bold uppercase tracking-wider cursor-pointer"
-                >
-                  Tutup
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ========================================================================= */}
-        {/* MODAL 2: KONFIRMASI PENDAFTARAN BATCH                                     */}
-        {/* ========================================================================= */}
-        {enrollModalBatch && enrollModalProgram && (
-          <div className="fixed inset-0 z-50 bg-neutral-950/70 backdrop-blur-xs flex items-center justify-center p-4">
-            <div className="bg-white border border-neutral-400 max-w-lg w-full p-6 space-y-5 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
-              <div className="flex items-center justify-between border-b border-neutral-200 pb-3">
-                <h3 className="text-sm font-bold uppercase tracking-tight text-neutral-900 font-mono">
-                  Konfirmasi Pendaftaran Pelatihan
-                </h3>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEnrollModalBatch(null);
-                    setEnrollModalProgram(null);
-                  }}
-                  className="p-1 text-neutral-400 hover:text-neutral-900 cursor-pointer"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              <div className="space-y-3 text-xs text-neutral-700">
-                <div className="bg-neutral-50 p-3 border border-neutral-200 space-y-1">
-                  <div className="text-[10px] font-mono text-neutral-500 uppercase">Program:</div>
-                  <div className="font-bold text-neutral-900">{enrollModalProgram.title}</div>
-                  <div className="text-[11px] text-neutral-600 font-mono">
-                    Gelombang: <strong>{enrollModalBatch.batchName}</strong> ({enrollModalBatch.trainingMethod})
-                  </div>
-                  <div className="text-[11px] text-emerald-800 font-bold font-mono">
-                    Skema:{' '}
-                    {enrollModalBatch.fundingType === 'GRATIS_APBD_MIMIKA' ||
-                    enrollModalBatch.fundingType === 'BEASISWA_CSR'
-                      ? 'Gratis (APBD Pemkab Mimika / CSR)'
-                      : `Rp ${(Number(enrollModalBatch.priceAmount) || 0).toLocaleString('id-ID')}`}
-                  </div>
-                </div>
-
-                <div className="border border-neutral-200 p-3 space-y-1.5 font-mono text-[11px]">
-                  <div className="font-bold text-neutral-900 uppercase">Data Pendaftar (Sesuai Profil):</div>
-                  <div>Nama Lengkap: <strong>{profile?.fullName}</strong></div>
-                  <div>NIK: <strong>{profile?.nik}</strong></div>
-                  <div>No. HP / WhatsApp: <strong>{profile?.phoneNumber || '-'}</strong></div>
-                  <div>Email: <strong>{profile?.user?.email || '-'}</strong></div>
-                </div>
-
-                <p className="text-neutral-500 leading-relaxed text-[11px]">
-                  Dengan menekan tombol di bawah, Anda menyatakan bersedia mengikuti seleksi berkas fisik/administrasi
-                  oleh pihak balai dan mematuhi jadwal pelatihan secara disiplin.
-                </p>
-              </div>
-
-              <div className="pt-3 border-t border-neutral-200 flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  disabled={enrolling}
-                  onClick={() => {
-                    setEnrollModalBatch(null);
-                    setEnrollModalProgram(null);
-                  }}
-                  className="px-4 py-2 border border-neutral-300 text-neutral-700 text-xs font-bold uppercase tracking-wider hover:bg-neutral-100 cursor-pointer"
-                >
-                  Batal
-                </button>
-                <button
-                  type="button"
-                  disabled={enrolling}
-                  onClick={handleConfirmBatchEnrollment}
-                  className="px-5 py-2 bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                >
-                  <span>{enrolling ? 'Mendaftarkan...' : 'Kirim Pendaftaran Resmi'}</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ========================================================================= */}
-        {/* MODAL 3: DIRECT WHATSAPP HAND-OFF SUCCESS                                 */}
-        {/* ========================================================================= */}
-        {whatsAppOutreachModal && (
-          <div className="fixed inset-0 z-50 bg-neutral-950/75 backdrop-blur-xs flex items-center justify-center p-4">
-            <div className="bg-white border border-neutral-400 max-w-lg w-full p-6 space-y-5 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
-              <div className="text-center space-y-2">
-                <div className="w-12 h-12 bg-emerald-100 border border-emerald-300 flex items-center justify-center mx-auto text-emerald-800">
-                  <CheckCircle2 className="w-6 h-6" />
-                </div>
-                <h3 className="text-base font-bold uppercase tracking-tight text-neutral-900">
-                  Pendaftaran Berhasil Dikirim!
-                </h3>
-                <p className="text-xs text-neutral-600">
-                  Data Anda resmi terdaftar di <strong>{whatsAppOutreachModal.batchName}</strong> (
-                  {whatsAppOutreachModal.programTitle}).
-                </p>
-              </div>
-
-              <div className="bg-emerald-50 border border-emerald-300 p-4 space-y-3 text-xs text-emerald-950">
-                <div className="flex items-center gap-2 font-bold uppercase font-mono">
-                  <MessageCircle className="w-4 h-4 text-emerald-700" />
-                  <span>Tahap Selanjutnya: Hubungi Narahubung Lembaga</span>
-                </div>
-                <p className="leading-relaxed">
-                  Untuk konfirmasi berkas verifikasi fisik atau jadwal seleksi wawancara langsung, silakan hubungi PIC{' '}
-                  <strong>{whatsAppOutreachModal.institutionName}</strong> via WhatsApp resmi:
-                </p>
-
-                <div className="p-3 bg-white border border-emerald-200 font-mono text-[11px] text-neutral-700 whitespace-pre-line">
-                  {whatsAppOutreachModal.outreach?.draftMessage}
-                </div>
-              </div>
-
-              <div className="space-y-2 pt-2">
-                {whatsAppOutreachModal.outreach?.whatsAppDirectUrl && (
-                  <a
-                    href={whatsAppOutreachModal.outreach.whatsAppDirectUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="w-full py-3 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors"
-                  >
-                    <MessageCircle className="w-4 h-4" />
-                    <span>Buka WhatsApp Sekarang</span>
-                    <ExternalLink className="w-3.5 h-3.5" />
-                  </a>
-                )}
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setWhatsAppOutreachModal(null);
-                    setActiveTab('MY_ENROLLMENTS');
-                  }}
-                  className="w-full py-2.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 text-xs font-bold uppercase tracking-wider cursor-pointer"
-                >
-                  Lihat Status di Pelatihan Saya
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
       <AlertModal {...alertProps} />
     </AppShell>
+  );
+}
+
+export default function TalentTrainingsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-neutral-100 flex items-center justify-center p-8">
+          <div className="bg-white border border-neutral-300 p-8 text-center space-y-3 max-w-sm w-full shadow-sm">
+            <div className="w-8 h-8 border-2 border-neutral-900 border-t-transparent animate-spin mx-auto"></div>
+            <div className="text-xs font-bold uppercase tracking-widest text-neutral-600 font-mono">
+              Memuat Katalog Pelatihan...
+            </div>
+          </div>
+        </div>
+      }
+    >
+      <TalentTrainingsContent />
+    </Suspense>
   );
 }

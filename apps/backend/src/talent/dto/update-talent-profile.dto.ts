@@ -1,10 +1,28 @@
-import { IsArray, IsBoolean, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsArray, IsBoolean, IsISO8601, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class UpdateTalentProfileDto {
   @IsOptional()
   @IsString()
   @MaxLength(20)
   phone?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  birthPlace?: string;
+
+  @IsOptional()
+  @IsISO8601({}, { message: 'Format tanggal lahir harus YYYY-MM-DD atau ISO8601.' })
+  birthDate?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  domicile?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isLocal?: boolean;
 
   @IsOptional()
   @IsString()

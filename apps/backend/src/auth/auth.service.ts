@@ -54,6 +54,10 @@ export class AuthService {
             nik: dto.nik,
             fullName: dto.fullName,
             birthDate: new Date(dto.birthDate),
+            birthPlace: dto.birthPlace || null,
+            phone: dto.phone || null,
+            domicile: dto.domicile || null,
+            isLocal: dto.isLocal !== undefined ? dto.isLocal : true,
           },
         });
       });

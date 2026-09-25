@@ -39,7 +39,7 @@ async function main() {
     data: {
       id: tUser.id,
       nik: nik,
-      fullName: 'Warga Mimika',
+      fullName: 'Talent Mimika',
       birthDate: new Date('1999-01-01'),
       isAvailable: true,
     },

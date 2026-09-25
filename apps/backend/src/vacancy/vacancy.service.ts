@@ -9,7 +9,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateJobVacancyDto } from './dto/create-job-vacancy.dto';
 import { UpdateJobVacancyDto } from './dto/update-job-vacancy.dto';
 import { ResolveVacancyOutcomeDto } from './dto/resolve-vacancy-outcome.dto';
-import { VacancyStatus, VerificationStatus, OpportunityType, WorkZone, WorkSchedule, EmploymentContractType } from '@prisma/client';
+import { VacancyStatus, VerificationStatus, OpportunityType, WorkZone, WorkSchedule, EmploymentContractType, TargetWorkforce } from '@prisma/client';
 
 @Injectable()
 export class VacancyService {
@@ -112,6 +112,7 @@ export class VacancyService {
         isSameAsOfficeLocation: isSameAsOffice,
         workZone: dto.workZone || WorkZone.TIMIKA_KOTA,
         workSchedule: dto.workSchedule || WorkSchedule.NORMAL_DAY,
+        targetWorkforce: dto.targetWorkforce || TargetWorkforce.ALL,
         jobLocationLat: jobLat,
         jobLocationLng: jobLng,
 
@@ -242,6 +243,7 @@ export class VacancyService {
         isSameAsOfficeLocation: dto.isSameAsOfficeLocation,
         workZone: dto.workZone,
         workSchedule: dto.workSchedule,
+        targetWorkforce: dto.targetWorkforce !== undefined ? dto.targetWorkforce : undefined,
         skillsGained: dto.skillsGained ? (dto.skillsGained as any) : undefined,
         mentorName: dto.mentorName,
         mentorRole: dto.mentorRole,

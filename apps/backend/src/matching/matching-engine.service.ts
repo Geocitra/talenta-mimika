@@ -34,9 +34,13 @@ export class MatchingEngineService {
     SMP: 2,
     SMA: 3,
     SMK: 3,
+    D1: 4,
+    D2: 4,
     D3: 4,
+    D4: 5,
     S1: 5,
     S2: 6,
+    S3: 7,
   };
 
   // Cache in-memory untuk evaluasi AI agar tidak memanggil ulang OpenAI berulang kali (Hemat Token & Cepat)
@@ -118,6 +122,10 @@ export class MatchingEngineService {
           certifications: talent.certifications,
           skills: talent.skills,
           phone: talent.phone || undefined,
+          birthPlace: talent.birthPlace || undefined,
+          birthDate: talent.birthDate ? talent.birthDate.toISOString() : undefined,
+          domicile: talent.domicile || undefined,
+          isLocal: talent.isLocal,
           bio: talent.bio || undefined,
           socialDna: talent.socialDna || undefined,
           overallScore: evaluation.overallScore,
@@ -231,6 +239,10 @@ export class MatchingEngineService {
           certifications: talent.certifications,
           skills: talent.skills,
           phone: talent.phone || undefined,
+          birthPlace: talent.birthPlace || undefined,
+          birthDate: talent.birthDate ? talent.birthDate.toISOString() : undefined,
+          domicile: talent.domicile || undefined,
+          isLocal: talent.isLocal,
           bio: talent.bio || undefined,
           socialDna: talent.socialDna || undefined,
           overallScore: evaluation.overallScore,
@@ -1227,12 +1239,12 @@ export class MatchingEngineService {
 
     // C. VEKTOR 3: JENJANG PENDIDIKAN & AFIRMASI FUZZY VOKASI (Bobot: 20%)
     const talentEduList = Array.isArray(talent.education) ? talent.education : [];
-    let highestEduDegree = 'SMA';
-    let highestEduRank = 3;
+    let highestEduDegree = talentEduList.length > 0 ? (talentEduList[0].degree || 'SMA').toUpperCase() : 'SMA';
+    let highestEduRank = talentEduList.length > 0 ? (this.EDUCATION_RANK[highestEduDegree] || 1) : 1;
 
     talentEduList.forEach((edu: any) => {
       const degree = (edu.degree || 'SMA').toUpperCase();
-      const rank = this.EDUCATION_RANK[degree] || 3;
+      const rank = this.EDUCATION_RANK[degree] || 1;
       if (rank > highestEduRank) {
         highestEduRank = rank;
         highestEduDegree = degree;
@@ -1281,6 +1293,31 @@ export class MatchingEngineService {
     if (socialDna.communityActivities) {
       socialDnaMatchScore += 10;
     }
+
+    // D.1. Evaluasi Keselarasan Posisi yang Dicari (desiredJobRoles) - Kunci untuk lulusan SMA/SMP/SD non-vokasi
+    const desiredRoles: string[] = Array.isArray(socialDna.desiredJobRoles)
+      ? socialDna.desiredJobRoles.map((r: string) => String(r).toLowerCase().trim()).filter(Boolean)
+      : [];
+
+    const vacancyTitleLower = (vacancy.title || '').toLowerCase();
+    const vacancyTaskLower = (vacancy.taskDescription || '').toLowerCase();
+
+    let matchedDesiredRole: string | undefined = undefined;
+    for (const role of desiredRoles) {
+      if (
+        vacancyTitleLower.includes(role) ||
+        role.includes(vacancyTitleLower) ||
+        requiredSkills.some((s) => s.includes(role) || role.includes(s)) ||
+        vacancyTaskLower.includes(role)
+      ) {
+        matchedDesiredRole = role;
+        break;
+      }
+    }
+    const hasRoleInterest = !!matchedDesiredRole;
+    if (hasRoleInterest) {
+      socialDnaMatchScore += 15;
+    }
     socialDnaMatchScore = Math.min(100, socialDnaMatchScore);
 
     // E. METADATA GEOSPASIAL GIS (Metadata Informatif - Architectural Guard)
@@ -1304,18 +1341,24 @@ export class MatchingEngineService {
       else distanceMatchScore = 50;
     }
 
-    // F. RELEVANCE GATE: Saringan kelayakan kompetensi dasar
+    // F. RELEVANCE GATE: Saringan kelayakan kompetensi dasar & minat karir
     const isSkillRelevant = matchedSkillCount > 0 || skillMatchScore >= 30;
     const hasRelatedPosition = workList.some((w: any) => {
       const p = (w.position || '').toLowerCase();
       return requiredSkills.some((req) => p.includes(req) || req.includes(p));
     });
 
+    let effectiveSkillScore = skillMatchScore;
+    if (hasRoleInterest) {
+      // Afirmasi minat posisi: talenta non-vokasi yang menargetkan posisi ini diakui kompetensi dasarnya
+      effectiveSkillScore = Math.max(skillMatchScore, 65);
+    }
+
     let overallScore = 0;
-    if (isSkillRelevant || hasRelatedPosition) {
+    if (isSkillRelevant || hasRelatedPosition || hasRoleInterest) {
       // Formula 4-Vektor Terbuka: Skill 35%, Exp 30%, Edu 20%, DNA 15%
       overallScore = Math.round(
-        skillMatchScore * 0.35 +
+        effectiveSkillScore * 0.35 +
         experienceMatchScore * 0.30 +
         educationMatchScore * 0.20 +
         socialDnaMatchScore * 0.15,
@@ -1326,9 +1369,34 @@ export class MatchingEngineService {
     }
 
     let aiReasoning = `Kandidat memiliki skor kecocokan ${overallScore}%. Memenuhi ${matchedSkillCount} dari ${requiredSkills.length} keahlian yang disyaratkan.`;
+    if (hasRoleInterest) {
+      aiReasoning += ` Afirmasi Minat Karir: Talenta secara proaktif menargetkan posisi "${matchedDesiredRole}" yang selaras dengan "${vacancy.title}".`;
+    }
     if (isFuzzyEquivalenceApplied) {
       aiReasoning += ` Afirmasi Pengalaman Vokasi: Lulusan ${highestEduDegree} dengan jam terbang ${totalExpYears.toFixed(1)} tahun diakui setara kualifikasi sarjana (Skor Pendidikan: ${educationMatchScore}%).`;
     }
+    const targetWorkforce = vacancy.targetWorkforce || 'ALL';
+    if (targetWorkforce === 'LOCAL_ONLY') {
+      if (talent.isLocal) {
+        overallScore = Math.min(100, overallScore + 10);
+        aiReasoning += ` Afirmasi Khusus Lokal: Memenuhi syarat mutlak sebagai Tenaga Kerja Lokal (Afirmasi OAP Mimika).`;
+      } else {
+        overallScore = Math.max(10, overallScore - 40);
+        aiReasoning += ` Catatan Sasaran: Lowongan ini diprioritaskan khusus bagi Tenaga Kerja Lokal Mimika.`;
+      }
+    } else if (targetWorkforce === 'NON_LOCAL') {
+      if (!talent.isLocal) {
+        overallScore = Math.min(100, overallScore + 5);
+        aiReasoning += ` Sasaran Penugasan: Memenuhi kualifikasi penugasan tenaga kerja spesialis nasional/luar daerah.`;
+      } else {
+        aiReasoning += ` Catatan Sasaran: Lowongan ditujukan untuk spesialisasi non-lokal.`;
+      }
+    } else {
+      if (talent.isLocal) {
+        aiReasoning += ` Afirmasi Tenaga Kerja: Terdaftar sebagai Talenta Lokal binaan prioritas penempatan daerah Mimika.`;
+      }
+    }
+
     if (socialDnaMatchScore >= 85) {
       aiReasoning += ` Preferensi pola kerja sangat selaras dengan zona kerja ${vacancy.workZone}.`;
     }
@@ -1358,13 +1426,13 @@ export class MatchingEngineService {
   private async evaluateInternshipCandidate(vacancy: any, talent: any) {
     // 1. VEKTOR 1: KESELARASAN PENDIDIKAN & JURUSAN (Bobot: 40%)
     const talentEduList = Array.isArray(talent.education) ? talent.education : [];
-    let highestEduDegree = 'SMK';
-    let highestEduRank = 3;
-    let primaryMajor = '';
+    let highestEduDegree = talentEduList.length > 0 ? (talentEduList[0].degree || 'SMK').toUpperCase() : 'SMK';
+    let highestEduRank = talentEduList.length > 0 ? (this.EDUCATION_RANK[highestEduDegree] || 1) : 1;
+    let primaryMajor = talentEduList.length > 0 ? (talentEduList[0].major || '') : '';
 
     talentEduList.forEach((edu: any) => {
       const degree = (edu.degree || 'SMK').toUpperCase();
-      const rank = this.EDUCATION_RANK[degree] || 3;
+      const rank = this.EDUCATION_RANK[degree] || 1;
       if (rank >= highestEduRank) {
         highestEduRank = rank;
         highestEduDegree = degree;
@@ -1480,6 +1548,26 @@ export class MatchingEngineService {
       aiReasoning += ` Afirmasi Fresh Graduate: Menjadi sasaran prioritas penyerapan angkatan kerja muda Mimika.`;
     }
 
+    const targetWorkforce = vacancy.targetWorkforce || 'ALL';
+    if (targetWorkforce === 'LOCAL_ONLY') {
+      if (talent.isLocal) {
+        overallScore = Math.min(100, overallScore + 10);
+        aiReasoning += ` Afirmasi Khusus Lokal: Memenuhi syarat mutlak sebagai Tenaga Kerja Lokal (Afirmasi OAP Mimika).`;
+      } else {
+        overallScore = Math.max(10, overallScore - 40);
+        aiReasoning += ` Catatan Sasaran: Pemagangan ini dikhususkan bagi Tenaga Kerja Lokal Mimika.`;
+      }
+    } else if (targetWorkforce === 'NON_LOCAL') {
+      if (!talent.isLocal) {
+        overallScore = Math.min(100, overallScore + 5);
+        aiReasoning += ` Sasaran Pemagangan: Program pemagangan terbuka bagi talenta nasional.`;
+      }
+    } else {
+      if (talent.isLocal) {
+        aiReasoning += ` Afirmasi Daerah: Terdaftar sebagai talenta lokal binaan Mimika.`;
+      }
+    }
+
     return {
       overallScore,
       breakdown: {
@@ -1539,7 +1627,7 @@ export class MatchingEngineService {
             }
           }
 
-          // Threshold 0.72 untuk mengakui padanan semantik bahasa lapangan warga
+          // Threshold 0.72 untuk mengakui padanan semantik bahasa lapangan talent
           // Contoh: "beko" vs "operator excavator", "juru las" vs "welder"
           if (maxSimilarity >= 0.72) {
             matchedCount++;

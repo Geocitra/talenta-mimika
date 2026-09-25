@@ -43,7 +43,7 @@ import {
   ShieldAlert
 } from 'lucide-react';
 
-type TabType = 'OVERVIEW' | 'USERS' | 'SKILLS' | 'CURATION' | 'INSTITUTIONS' | 'EMPLOYERS' | 'TRAININGS';
+type TabType = 'OVERVIEW' | 'USERS' | 'SKILLS' | 'CURATION' | 'INSTITUTIONS' | 'EMPLOYERS' | 'PROVIDERS' | 'TRAININGS';
 
 const SKILL_CATEGORY_LABELS: Record<string, string> = {
   DIGITAL_IT: 'IT & Software',
@@ -116,7 +116,7 @@ const MAJOR_CATEGORY_LABELS: Record<string, string> = {
   TEKNIK_MARITIM: 'Teknik Kelautan & Perkapalan',
   HUKUM: 'Ilmu Hukum',
   TEKNIK_LAINNYA: 'Teknik & Rumpun Terapan Lainnya',
-  USULAN_WARGA: 'Usulan Warga',
+  USULAN_WARGA: 'Usulan Talent',
 };
 
 function formatMajorCategory(cat: string): string {
@@ -224,13 +224,19 @@ export default function ExecutiveCommandCenterPage() {
   const [newTrainingQuota, setNewTrainingQuota] = useState(30);
   const [newTrainingPassingGrade, setNewTrainingPassingGrade] = useState(80);
 
-  // Skillhub & Kurasi Disnaker State
-  const [trainingSubTab, setTrainingSubTab] = useState<'CATALOG' | 'PROVIDERS' | 'PROGRAM_CURATION'>('CATALOG');
+  // Verifikasi Balai Pelatihan & Lembaga Sertifikasi (LPK / BLK / LSP BNSP) State
+  const [allProviders, setAllProviders] = useState<any[]>([]);
+  const [allProvidersLoading, setAllProvidersLoading] = useState(false);
+  const [providerStatusFilter, setProviderStatusFilter] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED'>('ALL');
+  const [providerTypeFilter, setProviderTypeFilter] = useState<string>('ALL');
+  const [providerSearch, setProviderSearch] = useState('');
   const [pendingProviders, setPendingProviders] = useState<any[]>([]);
   const [pendingProvidersLoading, setPendingProvidersLoading] = useState(false);
   const [providerRejectModal, setProviderRejectModal] = useState<any | null>(null);
   const [providerAuditNotes, setProviderAuditNotes] = useState('');
 
+  // Skillhub & Kurasi Disnaker State (Legacy Subtabs)
+  const [trainingSubTab, setTrainingSubTab] = useState<'CATALOG' | 'PROVIDERS' | 'PROGRAM_CURATION'>('CATALOG');
   const [pendingProgramCurations, setPendingProgramCurations] = useState<any[]>([]);
   const [pendingCurationsLoading, setPendingCurationsLoading] = useState(false);
   const [programCurateModal, setProgramCurateModal] = useState<any | null>(null);
@@ -240,7 +246,7 @@ export default function ExecutiveCommandCenterPage() {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const tabParam = params.get('tab') as TabType;
-      if (tabParam && ['OVERVIEW', 'USERS', 'SKILLS', 'CURATION', 'INSTITUTIONS', 'EMPLOYERS', 'TRAININGS'].includes(tabParam)) {
+      if (tabParam && ['OVERVIEW', 'USERS', 'SKILLS', 'CURATION', 'INSTITUTIONS', 'EMPLOYERS', 'PROVIDERS', 'TRAININGS'].includes(tabParam)) {
         setActiveTab(tabParam);
         if (tabParam === 'USERS') loadUsersData(1);
         if (tabParam === 'SKILLS') loadSkillsData(1);
@@ -250,6 +256,7 @@ export default function ExecutiveCommandCenterPage() {
         }
         if (tabParam === 'INSTITUTIONS') loadInstitutionsData(1);
         if (tabParam === 'EMPLOYERS') loadPendingEmployers();
+        if (tabParam === 'PROVIDERS') loadAllProviders();
         if (tabParam === 'TRAININGS') {
           loadTrainingsData();
           loadPendingProviders();
@@ -310,13 +317,14 @@ export default function ExecutiveCommandCenterPage() {
         loadUsersData(1),
         loadInstitutionsData(1),
         loadPendingEmployers(),
+        loadAllProviders(),
         loadTrainingsData()
       ]);
     } else {
-      // Disnaker Admin & Executive: Hanya perlu antrean verifikasi perusahaan & pelatihan daerah
+      // Disnaker Admin & Executive: Antrean verifikasi perusahaan & balai pelatihan
       await Promise.all([
         loadPendingEmployers(),
-        loadTrainingsData()
+        loadAllProviders()
       ]);
     }
 
@@ -822,6 +830,23 @@ export default function ExecutiveCommandCenterPage() {
     }
   };
 
+  const loadAllProviders = async () => {
+    setAllProvidersLoading(true);
+    try {
+      const res = await apiFetch<any[]>('/training-providers');
+      if (res.status === 'success') {
+        const list = res.data || [];
+        setAllProviders(list);
+        const pending = list.filter((p: any) => p.verificationStatus === 'PENDING');
+        setPendingProviders(pending);
+      }
+    } catch (err) {
+      console.error('Gagal memuat daftar lembaga pelatihan:', err);
+    } finally {
+      setAllProvidersLoading(false);
+    }
+  };
+
   const loadPendingProviders = async () => {
     setPendingProvidersLoading(true);
     try {
@@ -864,7 +889,7 @@ export default function ExecutiveCommandCenterPage() {
         );
         setProviderRejectModal(null);
         setProviderAuditNotes('');
-        await loadPendingProviders();
+        await loadAllProviders();
       } else {
         showAlert('error', 'Gagal Memproses', res.message || 'Terjadi kesalahan sistem.');
       }
@@ -918,6 +943,7 @@ export default function ExecutiveCommandCenterPage() {
       if (tab === 'INSTITUTIONS') loadInstitutionsData(1);
     }
     if (tab === 'EMPLOYERS') loadPendingEmployers();
+    if (tab === 'PROVIDERS') loadAllProviders();
     if (tab === 'TRAININGS') loadTrainingsData();
   };
 
@@ -935,12 +961,13 @@ export default function ExecutiveCommandCenterPage() {
         loadSkillsData(skillPage),
         loadInstitutionsData(instPage),
         loadPendingEmployers(),
+        loadAllProviders(),
         loadTrainingsData()
       ]);
     } else {
       await Promise.all([
         loadPendingEmployers(),
-        loadTrainingsData()
+        loadAllProviders()
       ]);
     }
     setRefreshing(false);
@@ -974,6 +1001,7 @@ export default function ExecutiveCommandCenterPage() {
       onTabChange={handleTabSwitch}
       curationBadge={curationData?.totalPending}
       pendingEmployersBadge={pendingEmployers.length}
+      pendingProvidersBadge={pendingProviders.length}
     >
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header Bersih & Elegan (Tanpa Nested Box) */}
@@ -1838,7 +1866,7 @@ export default function ExecutiveCommandCenterPage() {
             )}
 
             {/* ========================================================= */}
-            {/* SUB-TAB 2: MEJA KURASI AI & KARANTINA USULAN WARGA */}
+            {/* SUB-TAB 2: MEJA KURASI AI & KARANTINA USULAN TALENT */}
             {/* ========================================================= */}
             {majorSubTab === 'CURATION' && (
               <div className="space-y-6">
@@ -1882,7 +1910,7 @@ export default function ExecutiveCommandCenterPage() {
                   <div className="p-5 border-b border-neutral-100 flex justify-between items-center">
                     <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-900 flex items-center gap-2">
                       <Inbox className="w-4 h-4 text-neutral-600" />
-                      Antrean Usulan Jurusan Warga (Quarantine Isolation)
+                      Antrean Usulan Jurusan Talent (Quarantine Isolation)
                     </h3>
                     <span className="text-xs font-mono text-neutral-400 font-medium">
                       {curationData?.pendingSuggestions?.length || 0} Antrean
@@ -2369,6 +2397,476 @@ export default function ExecutiveCommandCenterPage() {
         )}
 
         {/* ------------------------------------------------------------- */}
+        {/* TAB: VERIFIKASI BALAI PELATIHAN & LEMBAGA SERTIFIKASI (PROVIDERS) */}
+        {/* ------------------------------------------------------------- */}
+        {activeTab === 'PROVIDERS' && (
+          <div className="space-y-6">
+            {/* Header Tab */}
+            <div className="bg-white border border-neutral-200 rounded-none p-6 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2 mb-1.5">
+                  <span className="p-1.5 bg-neutral-900 text-white rounded-none">
+                    <Building2 className="w-5 h-5 text-neutral-100" />
+                  </span>
+                  <h2 className="text-lg font-bold uppercase tracking-tight text-neutral-900 font-mono">
+                    Verifikasi Balai Pelatihan & Lembaga Sertifikasi
+                  </h2>
+                  <span className="text-xs font-mono font-bold px-2 py-0.5 bg-neutral-900 text-white">
+                    {allProviders.length} Lembaga
+                  </span>
+                </div>
+                <p className="text-xs text-neutral-600 max-w-2xl">
+                  Otoritas audit legalitas izin operasional LPK Swasta, BLK Pemerintah, dan lisensi LSP BNSP Kabupaten Mimika. 
+                  Lembaga yang disahkan memegang hak terbit mandiri untuk mempublikasikan program pelatihan langsung ke katalog Skillhub.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={loadAllProviders}
+                  disabled={allProvidersLoading}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold uppercase tracking-wider text-neutral-800 bg-white border border-neutral-300 hover:bg-neutral-100 transition-colors cursor-pointer"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${allProvidersLoading ? 'animate-spin' : ''}`} />
+                  <span>Segarkan Data</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Filter & Bar Pencarian */}
+            <div className="bg-white border border-neutral-200 p-4 space-y-3">
+              {/* Baris Atas: Status Tabs */}
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setProviderStatusFilter('ALL')}
+                  className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer border ${
+                    providerStatusFilter === 'ALL'
+                      ? 'bg-neutral-900 text-white border-neutral-900'
+                      : 'bg-neutral-50 text-neutral-700 border-neutral-200 hover:bg-neutral-100'
+                  }`}
+                >
+                  Semua Lembaga ({allProviders.length})
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setProviderStatusFilter('PENDING')}
+                  className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer border flex items-center gap-1.5 ${
+                    providerStatusFilter === 'PENDING'
+                      ? 'bg-amber-600 text-white border-amber-600'
+                      : 'bg-amber-50 text-amber-900 border-amber-200 hover:bg-amber-100'
+                  }`}
+                >
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>Menunggu Verifikasi</span>
+                  <span className="ml-1 px-1.5 py-0.2 bg-amber-200 text-amber-950 font-mono text-[10px] font-bold">
+                    {allProviders.filter(p => p.verificationStatus === 'PENDING').length}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setProviderStatusFilter('APPROVED')}
+                  className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer border flex items-center gap-1.5 ${
+                    providerStatusFilter === 'APPROVED'
+                      ? 'bg-emerald-700 text-white border-emerald-700'
+                      : 'bg-emerald-50 text-emerald-900 border-emerald-200 hover:bg-emerald-100'
+                  }`}
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>Terverifikasi Aktif</span>
+                  <span className="ml-1 px-1.5 py-0.2 bg-emerald-200 text-emerald-950 font-mono text-[10px] font-bold">
+                    {allProviders.filter(p => p.verificationStatus === 'APPROVED').length}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setProviderStatusFilter('REJECTED')}
+                  className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer border flex items-center gap-1.5 ${
+                    providerStatusFilter === 'REJECTED'
+                      ? 'bg-rose-700 text-white border-rose-700'
+                      : 'bg-rose-50 text-rose-900 border-rose-200 hover:bg-rose-100'
+                  }`}
+                >
+                  <ShieldAlert className="w-3.5 h-3.5" />
+                  <span>Ditolak / Dibekukan</span>
+                  <span className="ml-1 px-1.5 py-0.2 bg-rose-200 text-rose-950 font-mono text-[10px] font-bold">
+                    {allProviders.filter(p => p.verificationStatus === 'REJECTED').length}
+                  </span>
+                </button>
+              </div>
+
+              {/* Baris Bawah: Tipe Lembaga & Search Bar */}
+              <div className="flex flex-col sm:flex-row items-center gap-3 pt-2 border-t border-neutral-100">
+                <div className="w-full sm:w-64">
+                  <select
+                    value={providerTypeFilter}
+                    onChange={(e) => setProviderTypeFilter(e.target.value)}
+                    className="w-full text-xs font-semibold px-3 py-2 bg-neutral-50 border border-neutral-300 focus:outline-none focus:border-neutral-900 cursor-pointer"
+                  >
+                    <option value="ALL">Semua Tipe Lembaga</option>
+                    <option value="LPK_SWASTA">LPK Swasta (Pelatihan Kerja)</option>
+                    <option value="BLK_PEMERINTAH">BLK Pemerintah (Balai Resmi)</option>
+                    <option value="LSP_BNSP">LSP (Lembaga Sertifikasi Profesi)</option>
+                    <option value="PUSAT_PELATIHAN_INDUSTRI">Pusat Pelatihan Industri</option>
+                  </select>
+                </div>
+
+                <div className="relative flex-1 w-full">
+                  <Search className="w-4 h-4 text-neutral-400 absolute left-3 top-2.5" />
+                  <input
+                    type="text"
+                    value={providerSearch}
+                    onChange={(e) => setProviderSearch(e.target.value)}
+                    placeholder="Cari nama lembaga, nomor VIN Kemnaker, lisensi BNSP, PIC, alamat di Mimika..."
+                    className="w-full text-xs pl-9 pr-3 py-2 bg-neutral-50 border border-neutral-300 focus:outline-none focus:border-neutral-900 font-sans"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* List / Cards Lembaga */}
+            {allProvidersLoading ? (
+              <div className="bg-white border border-neutral-200 p-12 text-center text-xs font-bold text-neutral-500 uppercase tracking-wider">
+                Mengambil Data Lembaga Pelatihan & Sertifikasi...
+              </div>
+            ) : (() => {
+              const filteredProviders = allProviders.filter((prov) => {
+                // Filter status
+                if (providerStatusFilter !== 'ALL' && prov.verificationStatus !== providerStatusFilter) {
+                  return false;
+                }
+                // Filter tipe
+                if (providerTypeFilter !== 'ALL' && prov.institutionType !== providerTypeFilter) {
+                  return false;
+                }
+                // Filter search
+                if (providerSearch.trim()) {
+                  const q = providerSearch.toLowerCase().trim();
+                  const matchName = prov.institutionName?.toLowerCase().includes(q);
+                  const matchVin = prov.vinNumber?.toLowerCase().includes(q);
+                  const matchBnsp = prov.bnspLicenseNumber?.toLowerCase().includes(q);
+                  const matchPic = prov.picName?.toLowerCase().includes(q);
+                  const matchEmail = prov.user?.email?.toLowerCase().includes(q);
+                  const matchAddress = prov.address?.toLowerCase().includes(q);
+                  if (!matchName && !matchVin && !matchBnsp && !matchPic && !matchEmail && !matchAddress) {
+                    return false;
+                  }
+                }
+                return true;
+              });
+
+              if (filteredProviders.length === 0) {
+                return (
+                  <div className="bg-white border border-neutral-200 p-12 text-center space-y-3">
+                    <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto" />
+                    <h3 className="text-sm font-bold text-neutral-900 uppercase">
+                      Tidak Ada Data Lembaga Ditemukan
+                    </h3>
+                    <p className="text-xs text-neutral-500 max-w-md mx-auto">
+                      Tidak ada pengajuan balai pelatihan atau lembaga sertifikasi yang cocok dengan filter atau kata kunci saat ini.
+                    </p>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="space-y-4">
+                  {filteredProviders.map((prov) => {
+                    const isPending = prov.verificationStatus === 'PENDING';
+                    const isApproved = prov.verificationStatus === 'APPROVED';
+                    const isRejected = prov.verificationStatus === 'REJECTED';
+
+                    return (
+                      <div
+                        key={prov.id}
+                        className="bg-white border border-neutral-200 p-6 space-y-5 shadow-xs"
+                      >
+                        {/* Baris Atas: Identitas & Status */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-neutral-100">
+                          <div className="flex items-start gap-3">
+                            <div className="w-10 h-10 bg-neutral-900 text-white flex items-center justify-center shrink-0 font-bold font-mono text-sm">
+                              {prov.institutionType === 'LSP_BNSP' ? 'LSP' : 'LPK'}
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <h3 className="text-base font-bold text-neutral-900">{prov.institutionName}</h3>
+                                <span className="text-[10px] font-bold uppercase px-2 py-0.5 bg-neutral-900 text-white font-mono">
+                                  {prov.institutionType?.replace(/_/g, ' ')}
+                                </span>
+                                {isPending && (
+                                  <span className="text-[11px] font-bold px-2 py-0.5 bg-amber-50 text-amber-800 border border-amber-300 flex items-center gap-1">
+                                    <Clock className="w-3 h-3 text-amber-600" />
+                                    Menunggu Verifikasi Disnaker
+                                  </span>
+                                )}
+                                {isApproved && (
+                                  <span className="text-[11px] font-bold px-2 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-300 flex items-center gap-1">
+                                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                    Terverifikasi & Kedaulatan Terbit
+                                  </span>
+                                )}
+                                {isRejected && (
+                                  <span className="text-[11px] font-bold px-2 py-0.5 bg-rose-50 text-rose-800 border border-rose-300 flex items-center gap-1">
+                                    <ShieldAlert className="w-3 h-3 text-rose-600" />
+                                    Ditolak / Dibekukan
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-xs text-neutral-500 mt-1 flex items-center gap-3 flex-wrap">
+                                <span>Akun Terdaftar: <strong>{prov.user?.email || '-'}</strong></span>
+                                <span>&bull;</span>
+                                <span>Diajukan: <strong>{new Date(prov.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</strong></span>
+                                <span>&bull;</span>
+                                <span className="font-mono font-bold text-neutral-800">{prov._count?.programs || 0} Program Aktif</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="text-right sm:self-center">
+                            <span className="text-xs font-mono font-bold text-neutral-700 bg-neutral-100 px-2.5 py-1 border border-neutral-200 block sm:inline-block">
+                              {prov.accreditation && prov.accreditation !== 'BELUM_TERAKREDITASI'
+                                ? `Akreditasi: ${prov.accreditation}`
+                                : 'Belum Terakreditasi'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Baris Detail: Legalitas, PIC, dan Alamat */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                          {/* Kolom 1: Legalitas Lembaga */}
+                          <div className="p-3.5 bg-neutral-50 border border-neutral-200 space-y-2">
+                            <div className="font-bold text-neutral-900 uppercase tracking-wider text-[10px] font-mono">
+                              Legalitas & Akreditasi
+                            </div>
+                            <div className="space-y-1">
+                              <div className="flex justify-between">
+                                <span className="text-neutral-500">Nomor VIN Kemnaker:</span>
+                                <span className="font-mono font-bold text-neutral-900">{prov.vinNumber || '-'}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-neutral-500">Nomor Lisensi BNSP:</span>
+                                <span className="font-mono font-semibold text-neutral-800">{prov.bnspLicenseNumber || '-'}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-neutral-500">Status Akreditasi:</span>
+                                <span className="font-semibold text-neutral-800">{prov.accreditation || 'Belum'}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Kolom 2: PIC Lembaga */}
+                          <div className="p-3.5 bg-neutral-50 border border-neutral-200 space-y-2">
+                            <div className="font-bold text-neutral-900 uppercase tracking-wider text-[10px] font-mono">
+                              Penanggung Jawab (PIC)
+                            </div>
+                            <div className="space-y-1">
+                              <div className="font-bold text-neutral-900">
+                                {prov.picName || 'Belum diisi'} {prov.picRole ? `(${prov.picRole})` : ''}
+                              </div>
+                              <div className="text-neutral-700 flex items-center gap-1.5">
+                                <Phone className="w-3.5 h-3.5 text-neutral-400" />
+                                {prov.picPhone ? (
+                                  <a
+                                    href={`https://wa.me/${prov.picPhone.replace(/\D/g, '')}`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-emerald-700 font-bold hover:underline"
+                                  >
+                                    {prov.picPhone} (WhatsApp)
+                                  </a>
+                                ) : (
+                                  <span>-</span>
+                                )}
+                              </div>
+                              <div className="text-neutral-600 flex items-center gap-1.5">
+                                <Mail className="w-3.5 h-3.5 text-neutral-400" />
+                                <span>{prov.picEmail || prov.user?.email || '-'}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Kolom 3: Alamat Operasional Mimika */}
+                          <div className="p-3.5 bg-neutral-50 border border-neutral-200 space-y-2">
+                            <div className="font-bold text-neutral-900 uppercase tracking-wider text-[10px] font-mono">
+                              Lokasi Workshop / Balai
+                            </div>
+                            <div className="space-y-1">
+                              <div className="text-neutral-800 flex items-start gap-1.5">
+                                <MapPin className="w-3.5 h-3.5 text-neutral-400 shrink-0 mt-0.5" />
+                                <span>{prov.address || 'Alamat workshop belum diatur'}</span>
+                              </div>
+                              {prov.websiteUrl && (
+                                <div className="flex justify-between items-center pt-1 border-t border-neutral-200">
+                                  <span className="text-neutral-500">Website:</span>
+                                  <a
+                                    href={prov.websiteUrl.startsWith('http') ? prov.websiteUrl : `https://${prov.websiteUrl}`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-blue-700 hover:underline flex items-center gap-1 font-semibold"
+                                  >
+                                    <span>Kunjungi Web</span>
+                                    <ExternalLink className="w-3 h-3" />
+                                  </a>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Catatan Penolakan (Jika ada) */}
+                        {prov.verificationNotes && (
+                          <div className="p-3 bg-rose-50 border border-rose-200 text-xs text-rose-900">
+                            <strong>Catatan Audit Disnaker:</strong> {prov.verificationNotes}
+                          </div>
+                        )}
+
+                        {/* Baris Bawah: Pratinjau Dokumen & Tombol Aksi */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-3 border-t border-neutral-100">
+                          <div>
+                            {prov.legalDocUrl ? (
+                              <a
+                                href={getFullMediaUrl(prov.legalDocUrl)}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-colors"
+                              >
+                                <FileText className="w-4 h-4 text-blue-600" />
+                                <span>Periksa Berkas PDF Izin Operasional / Legalitas</span>
+                                <ExternalLink className="w-3.5 h-3.5 text-blue-500" />
+                              </a>
+                            ) : (
+                              <span className="text-xs text-amber-800 font-medium flex items-center gap-1.5 bg-amber-50 px-2.5 py-1 border border-amber-200">
+                                <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                                Berkas dokumen legalitas belum diunggah oleh lembaga
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-2.5">
+                            {isPending && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setProviderRejectModal(prov);
+                                    setProviderAuditNotes('');
+                                  }}
+                                  className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-rose-700 bg-white border border-rose-300 hover:bg-rose-50 transition-colors cursor-pointer"
+                                >
+                                  Tolak Legalitas
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleVerifyProvider(prov.id, 'APPROVED')}
+                                  className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-white bg-emerald-700 hover:bg-emerald-800 shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
+                                >
+                                  <Check className="w-4 h-4" />
+                                  <span>Sahkan & Beri Hak Terbit (APPROVED)</span>
+                                </button>
+                              </>
+                            )}
+
+                            {isApproved && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setProviderRejectModal(prov);
+                                  setProviderAuditNotes(prov.verificationNotes || '');
+                                }}
+                                className="px-3.5 py-1.5 text-xs font-bold uppercase tracking-wider text-neutral-600 bg-white border border-neutral-300 hover:text-rose-700 hover:border-rose-300 hover:bg-rose-50 transition-colors cursor-pointer"
+                              >
+                                Bekukan / Cabut Izin
+                              </button>
+                            )}
+
+                            {isRejected && (
+                              <button
+                                type="button"
+                                onClick={() => handleVerifyProvider(prov.id, 'APPROVED')}
+                                className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-white bg-emerald-700 hover:bg-emerald-800 transition-colors cursor-pointer flex items-center gap-1.5"
+                              >
+                                <Check className="w-4 h-4" />
+                                <span>Pulihkan & Sahkan Lembaga</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+
+            {/* Modal Tolak Provider */}
+            {providerRejectModal && (
+              <div className="fixed inset-0 z-50 bg-neutral-950/60 backdrop-blur-sm flex items-center justify-center p-4">
+                <div className="bg-white border border-neutral-300 max-w-md w-full p-6 space-y-4 shadow-xl">
+                  <div className="flex justify-between items-start">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 bg-rose-100 text-rose-700 flex items-center justify-center font-bold">
+                        <X className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-bold uppercase text-neutral-900">
+                          Tolak Verifikasi Lembaga
+                        </h3>
+                        <p className="text-xs text-neutral-500">{providerRejectModal.institutionName}</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setProviderRejectModal(null)}
+                      className="p-1 text-neutral-400 hover:text-neutral-700 cursor-pointer"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold uppercase tracking-wider text-neutral-700 block">
+                      Alasan / Catatan Resmi Audit Disnaker:
+                    </label>
+                    <textarea
+                      rows={3}
+                      required
+                      value={providerAuditNotes}
+                      onChange={(e) => setProviderAuditNotes(e.target.value)}
+                      placeholder="Contoh: Berkas izin operasional VIN tidak terbaca atau masa berlaku OSS telah kedaluwarsa..."
+                      className="w-full border border-neutral-300 p-2.5 text-xs text-neutral-900 focus:border-neutral-900 focus:outline-none resize-none font-sans"
+                    />
+                    <p className="text-[11px] text-neutral-500">
+                      Catatan ini akan tampil di dasbor balai agar mereka dapat merevisi dan mengunggah ulang dokumen legalitas yang sah.
+                    </p>
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-2 border-t border-neutral-200">
+                    <button
+                      type="button"
+                      onClick={() => setProviderRejectModal(null)}
+                      className="px-3.5 py-1.5 text-xs font-semibold text-neutral-600 hover:text-neutral-900 cursor-pointer"
+                    >
+                      Batal
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleVerifyProvider(providerRejectModal.id, 'REJECTED', providerAuditNotes)}
+                      className="px-4 py-1.5 bg-rose-700 hover:bg-rose-800 text-white text-xs font-bold uppercase tracking-wider cursor-pointer"
+                    >
+                      Konfirmasi Tolak
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ------------------------------------------------------------- */}
         {/* TAB 7: KATALOG & MANAJEMEN PELATIHAN DAERAH (TRAININGS LMS)   */}
         {/* ------------------------------------------------------------- */}
         {activeTab === 'TRAININGS' && (
@@ -2540,7 +3038,7 @@ export default function ExecutiveCommandCenterPage() {
                             ) : (
                               <span className="text-[11px] font-semibold text-emerald-700 flex items-center gap-1">
                                 <Check className="w-3.5 h-3.5 text-emerald-600" />
-                                Aktif di Katalog Warga
+                                Aktif di Katalog Talent
                               </span>
                             )}
                           </div>
@@ -3197,7 +3695,7 @@ export default function ExecutiveCommandCenterPage() {
                     <Users className="w-4 h-4 text-neutral-600" />
                   </div>
                   <div className="text-3xl font-bold font-mono text-neutral-900">{kpis.totalTalents || 0}</div>
-                  <span className="text-[11px] text-neutral-500 block">Warga terverifikasi NIK Dukcapil</span>
+                  <span className="text-[11px] text-neutral-500 block">Talent terverifikasi NIK Dukcapil</span>
                 </div>
 
                 <div className="bg-white border border-neutral-200 rounded-xl p-5 space-y-2 shadow-sm">
@@ -3242,7 +3740,7 @@ export default function ExecutiveCommandCenterPage() {
                     <GraduationCap className="w-4 h-4 text-blue-600" />
                   </div>
                   <div className="text-3xl font-bold font-mono text-neutral-900">{kpis.totalEnrollments || 0}</div>
-                  <span className="text-[11px] text-neutral-500 block">Warga terdaftar di LMS Disnaker</span>
+                  <span className="text-[11px] text-neutral-500 block">Talent terdaftar di LMS Disnaker</span>
                 </div>
 
                 <div className="bg-white border border-neutral-200 rounded-xl p-5 space-y-2 shadow-sm">

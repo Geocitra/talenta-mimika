@@ -65,7 +65,7 @@ if ($res.status -eq "success") {
 
     Write-Host "`n--- ANALISIS KESENJANGAN KETERAMPILAN (SKILL GAP) ---" -ForegroundColor Yellow
     foreach ($sg in $res.data.skillGaps) {
-        Write-Host "Keahlian: $($sg.skillName) | Dicari Industri: $($sg.demandCount) | Tersedia di Warga: $($sg.supplyCount) | Status: $($sg.status)"
+        Write-Host "Keahlian: $($sg.skillName) | Dicari Industri: $($sg.demandCount) | Tersedia di Talent: $($sg.supplyCount) | Status: $($sg.status)"
     }
 
     Write-Host "`n--- DISTRIBUSI SEKTOR INDUSTRI ---" -ForegroundColor Yellow

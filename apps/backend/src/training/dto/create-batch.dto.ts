@@ -11,7 +11,7 @@ import {
   Max,
   Min,
 } from 'class-validator';
-import { ProgramFundingType, TrainingMethod } from '@prisma/client';
+import { ProgramFundingType, TrainingMethod, AdmissionPolicy } from '@prisma/client';
 
 export class CreateBatchDto {
   @IsString()
@@ -37,6 +37,14 @@ export class CreateBatchDto {
   @IsArray()
   welfareBenefits?: string[];
 
+  @IsOptional()
+  @IsEnum(AdmissionPolicy, { message: 'Mode penerimaan harus INSTANT_ADMISSION atau CURATED_SELECTION.' })
+  admissionPolicy?: AdmissionPolicy;
+
+  @IsOptional()
+  @IsDateString({}, { message: 'Format tanggal pengumuman harus YYYY-MM-DD.' })
+  announcementDate?: string;
+
   @IsDateString({}, { message: 'Format tanggal mulai pendaftaran harus YYYY-MM-DD.' })
   @IsNotEmpty()
   registrationStart: string;
@@ -58,6 +66,22 @@ export class CreateBatchDto {
   venueAddress?: string;
 
   @IsOptional()
+  @IsString()
+  bankName?: string;
+
+  @IsOptional()
+  @IsString()
+  bankAccountNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  bankAccountHolder?: string;
+
+  @IsOptional()
+  @IsString()
+  paymentInstructions?: string;
+
+  @IsOptional()
   @IsNumber()
   @Min(-90)
   @Max(90)
@@ -74,6 +98,22 @@ export class UpdateBatchDto {
   @IsOptional()
   @IsString()
   batchName?: string;
+
+  @IsOptional()
+  @IsString()
+  bankName?: string;
+
+  @IsOptional()
+  @IsString()
+  bankAccountNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  bankAccountHolder?: string;
+
+  @IsOptional()
+  @IsString()
+  paymentInstructions?: string;
 
   @IsOptional()
   @IsEnum(ProgramFundingType, { message: 'Skema pembiayaan tidak valid.' })
@@ -96,6 +136,14 @@ export class UpdateBatchDto {
   @IsOptional()
   @IsArray()
   welfareBenefits?: string[];
+
+  @IsOptional()
+  @IsEnum(AdmissionPolicy, { message: 'Mode penerimaan harus INSTANT_ADMISSION atau CURATED_SELECTION.' })
+  admissionPolicy?: AdmissionPolicy;
+
+  @IsOptional()
+  @IsDateString({}, { message: 'Format tanggal pengumuman harus YYYY-MM-DD.' })
+  announcementDate?: string;
 
   @IsOptional()
   @IsDateString({}, { message: 'Format tanggal mulai pendaftaran harus YYYY-MM-DD.' })

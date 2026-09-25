@@ -15,7 +15,6 @@ import {
   Sparkles,
   ArrowRight,
   ShieldCheck,
-  User,
   Wrench,
   XCircle,
   FileText,
@@ -25,15 +24,6 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import OutcomeGatekeeperModal from '@/components/OutcomeGatekeeperModal';
-
-const COMPANY_SIZE_LABELS: Record<string, string> = {
-  SCALE_1_10: '1-10 Karyawan (Mikro)',
-  SCALE_11_50: '11-50 Karyawan (Kecil)',
-  SCALE_51_200: '51-200 Karyawan (Menengah)',
-  SCALE_201_500: '201-500 Karyawan (Menengah-Besar)',
-  SCALE_501_1000: '501-1.000 Karyawan (Besar)',
-  SCALE_OVER_1000: '> 1.000 Karyawan (Korporasi)',
-};
 
 export default function EmployerDashboardPage() {
   const router = useRouter();
@@ -103,106 +93,126 @@ export default function EmployerDashboardPage() {
   return (
     <AppShell userRole="EMPLOYER" userName={profile?.companyName || 'Perusahaan'}>
       <div className="max-w-5xl mx-auto space-y-6 pb-12">
-        {/* HEADER PROFIL PERUSAHAAN */}
-        <div className="bg-white border border-neutral-300 p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 shadow-xs">
-          <div className="flex items-start gap-4">
-            {profile?.logoUrl ? (
-              <img
-                src={getFullMediaUrl(profile.logoUrl)}
-                alt={profile.companyName}
-                className="w-16 h-16 object-contain border border-neutral-300 shrink-0 bg-white p-1"
-              />
-            ) : (
-              <div className="w-16 h-16 bg-neutral-100 border border-neutral-300 flex items-center justify-center shrink-0">
-                <Building2 className="w-8 h-8 text-neutral-400" />
+        {/* HEADER PROFIL PERUSAHAAN (MODERN CORPORATE DASHBOARD) */}
+        <div className="bg-white border border-neutral-200/90 rounded-xl p-6 shadow-xs space-y-5">
+          {/* BARIS UTAMA: IDENTITAS KORPORAT & TOMBOL AKSI */}
+          <div className="flex flex-col lg:flex-row justify-between items-start gap-5">
+            <div className="flex items-start gap-4 min-w-0 flex-1">
+              {/* LOGO PERUSAHAAN */}
+              <div className="w-16 h-16 rounded-xl border border-neutral-200 bg-white p-1.5 shrink-0 flex items-center justify-center overflow-hidden shadow-2xs">
+                {profile?.logoUrl ? (
+                  <img
+                    src={getFullMediaUrl(profile.logoUrl)}
+                    alt={profile.companyName}
+                    className="w-full h-full object-contain"
+                  />
+                ) : (
+                  <Building2 className="w-7 h-7 text-neutral-400" />
+                )}
               </div>
-            )}
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span
-                  className={`inline-flex items-center gap-1 text-[10px] font-bold tracking-widest uppercase px-2 py-0.5 ${
-                    isApproved
-                      ? 'bg-emerald-700 text-white'
-                      : isRejected
-                      ? 'bg-rose-700 text-white'
-                      : 'bg-amber-600 text-white'
-                  }`}
-                >
-                  {isApproved ? (
-                    <ShieldCheck className="w-3 h-3" />
-                  ) : isRejected ? (
-                    <XCircle className="w-3 h-3" />
-                  ) : (
-                    <Clock className="w-3 h-3" />
-                  )}
-                  STATUS: {profile?.verificationStatus}
-                </span>
-                <span className="text-xs font-mono text-neutral-600 bg-neutral-100 px-1.5 py-0.5 border border-neutral-200 font-semibold">
-                  NIB: {profile?.nib}
-                </span>
-                {profile?.brandName && profile?.brandName !== profile?.companyName && (
-                  <span className="text-[10px] uppercase font-bold text-neutral-500 bg-neutral-50 px-1.5 py-0.5 border border-neutral-200">
-                    Merek: {profile.brandName}
+
+              {/* IDENTITAS: BADGES & NAMA PERUSAHAAN */}
+              <div className="space-y-1.5 min-w-0 flex-1">
+                {/* BADGES: STATUS, NIB, MEREK */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
+                      isApproved
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        : isRejected
+                        ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                        : 'bg-amber-50 text-amber-700 border border-amber-200'
+                    }`}
+                  >
+                    {isApproved ? (
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 shrink-0" />
+                    ) : isRejected ? (
+                      <span className="w-1.5 h-1.5 rounded-full bg-rose-600 shrink-0" />
+                    ) : (
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-600 shrink-0" />
+                    )}
+                    {isApproved ? 'Terverifikasi Disnaker' : isRejected ? 'Verifikasi Ditolak' : 'Menunggu Verifikasi'}
                   </span>
-                )}
-              </div>
 
-              <h1 className="text-xl font-bold uppercase tracking-tight text-neutral-900">
-                {profile?.companyName}
-              </h1>
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-mono font-medium bg-neutral-100 text-neutral-700 border border-neutral-200">
+                    NIB: {profile?.nib}
+                  </span>
 
-              <div className="text-xs text-neutral-600 flex items-center gap-3 flex-wrap">
-                <span className="flex items-center gap-1">
-                  <MapPin className="w-3.5 h-3.5 text-neutral-500 shrink-0" />
-                  <span>{profile?.address || 'Alamat operasional Mimika belum diatur'}</span>
-                </span>
-                {profile?.industrySector && (
-                  <>
-                    <span>&bull;</span>
-                    <span className="text-neutral-700 font-medium">{profile.industrySector}</span>
-                  </>
-                )}
-                {profile?.companySize && (
-                  <>
-                    <span>&bull;</span>
-                    <span className="text-neutral-700 font-medium">
-                      {COMPANY_SIZE_LABELS[profile.companySize] || profile.companySize}
+                  {profile?.brandName && profile?.brandName !== profile?.companyName && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-sky-50 text-sky-700 border border-sky-200">
+                      Merek: {profile.brandName}
                     </span>
-                  </>
-                )}
-              </div>
+                  )}
+                </div>
 
-              {profile?.picName && (
-                <p className="text-[11px] text-neutral-500 flex items-center gap-1.5 pt-0.5">
-                  <User className="w-3 h-3 text-neutral-400" />
-                  <span>
-                    PIC HRD: <strong>{profile.picName}</strong>
-                    {profile?.picRole ? ` (${profile.picRole})` : ''} - {profile?.picPhone || 'Tanpa No HP'}
-                  </span>
-                </p>
+                {/* NAMA PERUSAHAAN */}
+                <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-neutral-900 leading-tight">
+                  {profile?.companyName}
+                </h1>
+
+                {/* LOKASI & SEKTOR PERUSAHAAN */}
+                <div className="flex items-center gap-y-1 gap-x-4 flex-wrap text-xs text-neutral-600 pt-0.5">
+                  <div className="flex items-center gap-1.5">
+                    <MapPin className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
+                    <span className="text-neutral-700">{profile?.address || 'Alamat operasional Mimika belum diatur'}</span>
+                  </div>
+
+                  {profile?.industrySector && (
+                    <div className="flex items-center gap-1.5">
+                      <Briefcase className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
+                      <span className="text-neutral-500">Sektor:</span>
+                      <span className="font-semibold text-neutral-800">{profile.industrySector}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* TOMBOL AKSI */}
+            <div className="flex items-center gap-2.5 w-full lg:w-auto shrink-0 pt-1 lg:pt-0">
+              <Link
+                href="/employer/profile"
+                className="flex-1 lg:flex-initial inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-neutral-300 hover:border-neutral-400 bg-white hover:bg-neutral-50 text-neutral-800 text-xs font-semibold shadow-2xs transition-all cursor-pointer"
+              >
+                <Building2 className="w-4 h-4 text-neutral-500" />
+                <span>Profiling Perusahaan</span>
+              </Link>
+
+              {isApproved && (
+                <Link
+                  href="/employer/vacancies/create"
+                  className="flex-1 lg:flex-initial inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-semibold shadow-xs hover:shadow transition-all cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Terbitkan Kebutuhan</span>
+                </Link>
               )}
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto shrink-0">
-            <Link
-              href="/employer/profile"
-              className="bg-white hover:bg-neutral-50 border border-neutral-300 text-neutral-900 px-4 py-2.5 text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors cursor-pointer"
-            >
-              <Building2 className="w-4 h-4 text-neutral-600" />
-              <span>Profil & Dokumen NIB</span>
-            </Link>
-
-            {isApproved && (
-              <Link
-                href="/employer/vacancies/create"
-                className="bg-neutral-900 hover:bg-neutral-800 text-white px-5 py-2.5 text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 shadow-xs cursor-pointer transition-colors"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Terbitkan Kebutuhan (Studio)</span>
+          {/* SEKSI PROFIL SINGKAT */}
+          {profile?.companyBio ? (
+            <div className="pt-3 border-t border-neutral-100">
+              <div className="rounded-lg bg-neutral-50/90 border border-neutral-200/70 p-3.5 flex items-start gap-3">
+                <FileText className="w-4 h-4 text-neutral-400 shrink-0 mt-0.5" />
+                <div className="space-y-0.5 min-w-0 flex-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500 block">
+                    Profil Singkat Perusahaan
+                  </span>
+                  <p className="text-xs text-neutral-700 leading-relaxed font-normal">
+                    {profile.companyBio}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="pt-3 border-t border-neutral-100 flex items-center justify-between text-xs text-neutral-500">
+              <span className="italic">Profil singkat perusahaan belum diatur.</span>
+              <Link href="/employer/profile" className="text-neutral-900 font-semibold hover:underline">
+                Lengkapi di Profiling &rarr;
               </Link>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         {/* ============================================================ */}
@@ -318,7 +328,7 @@ export default function EmployerDashboardPage() {
         )}
 
         {/* DAFTAR LOWONGAN AKTIF */}
-        <div className="bg-white border border-neutral-300 shadow-xs">
+        <div className="bg-white border border-neutral-200/90 rounded-xl shadow-xs overflow-hidden">
           <div className="p-4 border-b border-neutral-200 flex justify-between items-center">
             <h2 className="text-xs font-bold uppercase tracking-wider text-neutral-900 flex items-center gap-2">
               <Briefcase className="w-4 h-4 text-neutral-700" />
@@ -389,7 +399,7 @@ export default function EmployerDashboardPage() {
 
                       <div className="text-xs text-neutral-600 flex items-center gap-3 flex-wrap">
                         <span>
-                          Zona: <strong className="text-neutral-800">{vac.workZone || 'TIMIKA_KOTA'}</strong>
+                          Pola Kerja: <strong className="text-neutral-800">{vac.workSchedule ? vac.workSchedule.replace(/_/g, ' ') : 'NORMAL DAY'}</strong>
                         </span>
                         <span>&bull;</span>
                         <span>

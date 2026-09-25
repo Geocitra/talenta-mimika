@@ -5,7 +5,7 @@
  */
 
 export class TextSanitizer {
-  // Awalan gelar / jenjang / istilah administrasi yang sering diketik warga
+  // Awalan gelar / jenjang / istilah administrasi yang sering diketik talent
   private static readonly PREFIX_REGEX =
     /\b(s-?1|s-?2|s-?3|d-?1|d-?2|d-?3|d-?4|sarjana|magister|doktor|diploma\s*[1-4]?|strata\s*[1-3]?|jurusan|prodi|program\s*studi|bidang|keahlian)\b/gi;
 

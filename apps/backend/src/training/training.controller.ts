@@ -9,7 +9,11 @@ import {
   Req,
   ParseUUIDPipe,
   ParseIntPipe,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { TrainingService } from './training.service';
 import { CreateTrainingProgramDto } from './dto/create-training-program.dto';
 import { CreateTrainingSessionDto } from './dto/create-training-session.dto';
@@ -98,6 +102,42 @@ export class TrainingController {
   @Roles(Role.TALENT)
   async getMyEnrollments(@Req() req: any) {
     return this.trainingService.getMyEnrollments(req.user.id);
+  }
+
+  // ==================== UNGGAH BUKTI TRANSFER SISWA MANDIRI ====================
+  @Post('enrollments/:enrollmentId/payment-proof')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.TALENT)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 5 * 1024 * 1024 }, // Max 5MB
+      fileFilter: (_req, file, callback) => {
+        const isImageOrPdf =
+          file.mimetype.startsWith('image/') ||
+          file.mimetype === 'application/pdf' ||
+          /\.(jpg|jpeg|png|webp|pdf)$/i.test(file.originalname);
+        if (!isImageOrPdf) {
+          return callback(
+            new BadRequestException('Format bukti pembayaran harus JPG, PNG, WEBP, atau PDF.'),
+            false,
+          );
+        }
+        callback(null, true);
+      },
+    }),
+  )
+  async uploadPaymentProof(
+    @Param('enrollmentId', ParseUUIDPipe) enrollmentId: string,
+    @UploadedFile() file: any,
+    @Req() req: any,
+    @Body('notes') notes?: string,
+  ) {
+    return this.trainingService.uploadPaymentProof(req.user.id, enrollmentId, file, notes);
+  }
+
+  @Get(':id')
+  async getProgramDetail(@Param('id', ParseUUIDPipe) id: string) {
+    return this.trainingService.getProgramById(id);
   }
 
   // ==================== KANAL PROGRESSIVE LMS & UJIAN ====================

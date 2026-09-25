@@ -1,6 +1,7 @@
 import {
   Controller,
   Get,
+  Post,
   Patch,
   Param,
   Body,
@@ -42,5 +43,27 @@ export class TrainingAdminController {
     @Body() dto: CurateProgramDto,
   ) {
     return this.adminService.curateProgram(id, req.user.id, dto);
+  }
+
+  // Hak Veto Takedown Program Pasca-Terbit (Support PATCH and POST)
+  @Patch('programs/:id/takedown')
+  @Post('programs/:id/takedown')
+  async takedownProgram(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: any,
+    @Body('reason') reason: string,
+  ) {
+    return this.adminService.takedownProgram(id, req.user.id, reason || 'Pelanggaran regulasi pelatihan daerah');
+  }
+
+  // Hak Veto Pembekuan Akun Lembaga Nakal (Support PATCH and POST)
+  @Patch('providers/:id/freeze')
+  @Post('providers/:id/freeze')
+  async freezeProvider(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: any,
+    @Body('reason') reason: string,
+  ) {
+    return this.adminService.freezeProvider(id, req.user.id, reason || 'Pelanggaran integritas penyelenggaraan pelatihan vokasi');
   }
 }

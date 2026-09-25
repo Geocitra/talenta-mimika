@@ -10,7 +10,7 @@ import {
   Max,
   Min,
 } from 'class-validator';
-import { OpportunityType, WorkZone, WorkSchedule, EmploymentContractType } from '@prisma/client';
+import { OpportunityType, WorkZone, WorkSchedule, EmploymentContractType, TargetWorkforce } from '@prisma/client';
 
 export class CreateJobVacancyDto {
   @IsString()
@@ -24,6 +24,10 @@ export class CreateJobVacancyDto {
   @IsOptional()
   @IsEnum(EmploymentContractType, { message: 'Tipe kontrak kerja tidak valid.' })
   contractType?: EmploymentContractType;
+
+  @IsOptional()
+  @IsEnum(TargetWorkforce, { message: 'Sasaran tenaga kerja tidak valid.' })
+  targetWorkforce?: TargetWorkforce;
 
   @IsOptional()
   @IsInt({ message: 'Durasi kontrak bulan harus berupa bilangan bulat.' })

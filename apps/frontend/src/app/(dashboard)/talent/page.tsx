@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch, getFullMediaUrl } from '@/lib/api';
 import AppShell from '@/components/layout/AppShell';
@@ -35,7 +35,11 @@ import {
   MapPin,
   Coins,
   Clock,
-  Users
+  Users,
+  Target,
+  ArrowLeft,
+  ArrowRight,
+  ChevronRight
 } from 'lucide-react';
 import { InstitutionAutocomplete } from '@/components/InstitutionAutocomplete';
 import { MajorCombobox } from '@/components/MajorCombobox';
@@ -64,8 +68,16 @@ export default function TalentProfilePage() {
   const [message, setMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
 
+  // Multi-step Wizard Navigation State
+  const [currentStep, setCurrentStep] = useState(1);
+  const formRef = useRef<HTMLFormElement>(null);
+
   // Editable States
   const [phone, setPhone] = useState('');
+  const [birthPlace, setBirthPlace] = useState('');
+  const [birthDate, setBirthDate] = useState('');
+  const [domicile, setDomicile] = useState('');
+  const [isLocal, setIsLocal] = useState<boolean>(true);
   const [bio, setBio] = useState('');
   const [skills, setSkills] = useState<{ 
     name: string; 
@@ -110,6 +122,47 @@ export default function TalentProfilePage() {
   const [preferredLocation, setPreferredLocation] = useState('TIMIKA');
   const [showReviewModal, setShowReviewModal] = useState(false);
 
+  // Target / Desired Job Roles (Preferensi Pekerjaan yang Dicari)
+  const [desiredJobRoles, setDesiredJobRoles] = useState<string[]>([]);
+  const [customRoleInput, setCustomRoleInput] = useState('');
+
+  const PRESET_DESIRED_JOB_ROLES = [
+    'Helper Mekanik / Tambang',
+    'Operator Logistik / Gudang',
+    'Petugas Keamanan (Security)',
+    'Driver Operasional (SIM A/B)',
+    'Staf Administrasi Lapangan',
+    'Pekerja Konstruksi / Rigger / Scaffolder',
+    'Catering & Mess Attendant',
+    'Crew Kebersihan / Cleaning Service',
+    'Operator Alat Berat (Excavator/Loader)',
+    'Helper Elektrikal / Listrik',
+    'Resepsionis / Front Office',
+    'Surveyor / Asisten Lapangan',
+  ];
+
+  const toggleDesiredRole = (role: string) => {
+    if (desiredJobRoles.includes(role)) {
+      setDesiredJobRoles(desiredJobRoles.filter((r) => r !== role));
+    } else {
+      setDesiredJobRoles([...desiredJobRoles, role]);
+    }
+  };
+
+  const addCustomDesiredRole = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const trimmed = customRoleInput.trim();
+    if (!trimmed) return;
+    if (!desiredJobRoles.includes(trimmed)) {
+      setDesiredJobRoles([...desiredJobRoles, trimmed]);
+    }
+    setCustomRoleInput('');
+  };
+
+  const removeDesiredRole = (role: string) => {
+    setDesiredJobRoles(desiredJobRoles.filter((r) => r !== role));
+  };
+
   const PRESET_WORK_PREFERENCES = [
     'Siap Shift Malam (24 Jam)',
     'Siap Remote Area / Pit Tambang',
@@ -120,6 +173,58 @@ export default function TalentProfilePage() {
     'Khusus Jam Kerja Normal (Day Shift)',
     'Siap Bekerja di Dataran Tinggi (Highland)',
   ];
+
+  const STEPS = [
+    {
+      id: 1,
+      title: 'Tahap 1: Identitas Pribadi & Kontak',
+      shortTitle: '1. Identitas',
+      caption: 'KTP, TTL, WA & Domisili',
+      description: 'Pastikan NIK terdaftar resmi, nomor HP/WhatsApp aktif untuk komunikasi HRD, dan tentukan distrik domisili.',
+      isComplete: () => Boolean(phone && birthDate && domicile && bio),
+    },
+    {
+      id: 2,
+      title: 'Tahap 2: Riwayat Pendidikan Formal',
+      shortTitle: '2. Pendidikan',
+      caption: 'Jenjang SD s/d S2',
+      description: 'Catat riwayat pendidikan formal mulai dari pendidikan dasar (SD/SMP), vokasi/menengah hingga perguruan tinggi.',
+      isComplete: () => education.length > 0,
+    },
+    {
+      id: 3,
+      title: 'Tahap 3: Rekam Jejak Pengalaman & Keahlian',
+      shortTitle: '3. Pengalaman',
+      caption: 'Kerja, Proyek & Keahlian',
+      description: 'Tambahkan pengalaman kerja riil, proyek lapangan, magang industri serta katalog keahlian teknis Anda.',
+      isComplete: () => workExperience.length > 0 || skills.length > 0,
+    },
+    {
+      id: 4,
+      title: 'Tahap 4: Dokumen Sertifikasi & Portofolio',
+      shortTitle: '4. Sertifikat',
+      caption: 'Lisensi PDF & Portofolio',
+      description: 'Lampirkan berkas sertifikat resmi (K3, BNSP, SIO Alat Berat) dan rekam jejak kegiatan organisasi/komunitas.',
+      isComplete: () => certifications.length > 0 || Boolean(organizations || portfolioUrl),
+    },
+    {
+      id: 5,
+      title: 'Tahap 5: Target Karir & Kesiapan Kerja',
+      shortTitle: '5. Target Karir',
+      caption: 'Posisi Incaran & Shift',
+      description: 'Tentukan posisi incaran (krusial untuk lulusan non-vokasi), shift kerja, dan wilayah tugas penempatan di Kabupaten Mimika.',
+      isComplete: () => desiredJobRoles.length > 0 || selectedPreferences.length > 0,
+    },
+  ];
+
+  const completedStepsCount = STEPS.filter((s) => s.isComplete()).length;
+
+  const goToStep = (stepNumber: number) => {
+    setCurrentStep(stepNumber);
+    if (formRef.current) {
+      formRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
 
   const getPreviewUrl = (fileUrl?: string) => getFullMediaUrl(fileUrl) || '#';
   const getAvatarDisplayUrl = (url?: string | null) => getFullMediaUrl(url);
@@ -134,6 +239,10 @@ export default function TalentProfilePage() {
       const data = res.data;
       setProfile(data);
       setPhone(data.phone || '');
+      setBirthPlace(data.birthPlace || '');
+      setBirthDate(data.birthDate ? data.birthDate.split('T')[0] : '');
+      setDomicile(data.domicile || '');
+      setIsLocal(data.isLocal !== undefined ? Boolean(data.isLocal) : true);
       setBio(data.bio || '');
       setAvatarUrl(data.avatarUrl || null);
       setSkills(Array.isArray(data.skills) ? data.skills : []);
@@ -148,6 +257,14 @@ export default function TalentProfilePage() {
           ? data.socialDna.workPreferences.split(',').map((s: string) => s.trim()).filter(Boolean)
           : [];
       setSelectedPreferences(prefs);
+
+      // Parse desiredJobRoles (array or string)
+      const roles = Array.isArray(data.socialDna?.desiredJobRoles)
+        ? data.socialDna.desiredJobRoles
+        : (typeof data.socialDna?.desiredJobRoles === 'string' && data.socialDna.desiredJobRoles)
+          ? data.socialDna.desiredJobRoles.split(',').map((s: string) => s.trim()).filter(Boolean)
+          : [];
+      setDesiredJobRoles(roles);
 
       setOrganizations(data.socialDna?.organizations || data.socialDna?.communityActivities || '');
       setPortfolioUrl(data.socialDna?.portfolioUrl || '');
@@ -170,6 +287,10 @@ export default function TalentProfilePage() {
 
     const payload = {
       phone,
+      birthPlace,
+      birthDate: birthDate || undefined,
+      domicile,
+      isLocal,
       bio,
       avatarUrl,
       skills,
@@ -179,6 +300,7 @@ export default function TalentProfilePage() {
       lastUpdatedAt: profile?.updatedAt,
       socialDna: {
         workPreferences: selectedPreferences,
+        desiredJobRoles,
         organizations,
         communityActivities: organizations,
         portfolioUrl,
@@ -422,9 +544,24 @@ export default function TalentProfilePage() {
                 <h1 className="text-xl font-bold uppercase tracking-tight text-neutral-900">
                   {profile?.fullName}
                 </h1>
-                <p className="text-xs text-neutral-600 mt-0.5">
-                  NIK: {profile?.nik} &bull; Terdaftar di Kabupaten Mimika
-                </p>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral-600 mt-1">
+                  <span>NIK: <strong className="font-mono text-neutral-800">{profile?.nik}</strong></span>
+                  <span>&bull;</span>
+                  <span>
+                    TTL: <strong className="text-neutral-800">
+                      {profile?.birthPlace ? `${profile.birthPlace}, ` : ''}
+                      {profile?.birthDate ? new Date(profile.birthDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
+                    </strong>
+                  </span>
+                  <span>&bull;</span>
+                  <span>
+                    No. HP: <strong className="text-neutral-800">{profile?.phone || 'Belum diatur'}</strong>
+                  </span>
+                  <span>&bull;</span>
+                  <span>
+                    Domisili: <strong className="text-neutral-800">{profile?.domicile || 'Kabupaten Mimika'}</strong>
+                  </span>
+                </div>
                 <div className="mt-2 flex items-center gap-3">
                   <label className="inline-flex items-center gap-1 text-[11px] font-bold uppercase text-neutral-900 hover:text-neutral-600 underline cursor-pointer">
                     <Camera className="w-3.5 h-3.5" />
@@ -802,46 +939,305 @@ export default function TalentProfilePage() {
           </div>
         )}
 
-        {/* Form Profil Tunggal Tanpa Nested Box */}
-        <form onSubmit={handleOpenReviewModal} className="bg-white border border-neutral-300 divide-y divide-neutral-200">
-          {/* Bagian 1: Biodata & Kontak */}
-          <div className="p-6 space-y-4">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-900 flex items-center gap-2">
-              <User className="w-4 h-4 text-neutral-700" />
-              1. Kontak & Ringkasan Diri
-            </h2>
+        {/* Form Profil Multi-Step Wizard Terstruktur */}
+        <form
+          ref={formRef}
+          onSubmit={handleOpenReviewModal}
+          className="bg-white border border-neutral-300 shadow-xs"
+        >
+          {/* Stepper Header Status Bar */}
+          <div className="bg-neutral-900 text-white p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-0.5 bg-neutral-800 text-[10px] font-mono uppercase tracking-wider text-neutral-300 border border-neutral-700">
+                  Tahap 0{currentStep} dari 0{STEPS.length}
+                </span>
+                <span className="text-[10px] text-neutral-400 uppercase tracking-widest font-semibold">
+                  &bull; Formulir Profiling Terstruktur
+                </span>
+              </div>
+              <h1 className="text-base sm:text-lg font-bold uppercase tracking-tight text-white mt-1">
+                {STEPS[currentStep - 1].title}
+              </h1>
+              <p className="text-xs text-neutral-300 mt-0.5">
+                {STEPS[currentStep - 1].description}
+              </p>
+            </div>
+            <div className="flex items-center gap-3 shrink-0">
+              <div className="text-right hidden sm:block">
+                <div className="text-[10px] uppercase font-bold tracking-wider text-neutral-400">Kemajuan Formulir</div>
+                <div className="text-xs font-mono font-bold text-emerald-400">
+                  {completedStepsCount} dari {STEPS.length} Tahap Terisi ({Math.round((completedStepsCount / STEPS.length) * 100)}%)
+                </div>
+              </div>
+              <button
+                type="submit"
+                disabled={saving}
+                className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold uppercase tracking-wider transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                title="Tinjau dan simpan profil"
+              >
+                <Save className="w-3.5 h-3.5" />
+                <span>Simpan Profil</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Progress Bar Indicator Line */}
+          <div className="w-full bg-neutral-200 h-1">
+            <div
+              className="bg-emerald-600 h-1 transition-all duration-300"
+              style={{ width: `${(currentStep / STEPS.length) * 100}%` }}
+            />
+          </div>
+
+          {/* Interactive Stepper Indicator Tabs (Dapat Diklik Bebas untuk Pindah Tahapan) */}
+          <div className="grid grid-cols-2 sm:grid-cols-5 border-b border-neutral-300 bg-neutral-100 divide-x divide-y sm:divide-y-0 divide-neutral-200 text-left">
+            {STEPS.map((step) => {
+              const isActive = currentStep === step.id;
+              const isCompleted = step.isComplete();
+              return (
+                <button
+                  key={step.id}
+                  type="button"
+                  onClick={() => goToStep(step.id)}
+                  className={`p-3 text-left transition-all cursor-pointer relative group flex flex-col justify-between ${
+                    isActive
+                      ? 'bg-white text-neutral-900 shadow-xs border-b-2 sm:border-b-2 border-b-neutral-900'
+                      : 'bg-neutral-50/80 text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1.5 w-full">
+                    <span className={`text-[10px] font-mono font-bold tracking-wider ${isActive ? 'text-neutral-900' : 'text-neutral-500'}`}>
+                      0{step.id}
+                    </span>
+                    {isCompleted ? (
+                      <span className="flex items-center gap-0.5 text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1 py-0.5 border border-emerald-200">
+                        <Check className="w-2.5 h-2.5 stroke-[3]" /> Terisi
+                      </span>
+                    ) : (
+                      <span className="w-1.5 h-1.5 rounded-full bg-neutral-300 group-hover:bg-neutral-400" />
+                    )}
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold uppercase tracking-tight line-clamp-1">
+                      {step.shortTitle}
+                    </div>
+                    <div className="text-[10px] text-neutral-500 line-clamp-1 hidden md:block">
+                      {step.caption}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* TAHAP 1: IDENTITAS & KONTAK */}
+          {currentStep === 1 && (
+            <div className="step-transition">
+              {/* Bagian 1: Data Pribadi & Kontak */}
+              <div className="p-6 space-y-4">
+                <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-900 flex items-center gap-2">
+                  <User className="w-4 h-4 text-neutral-700" />
+                  1. Data Pribadi, Tempat Tanggal Lahir & Kontak
+                </h2>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold uppercase text-neutral-700 mb-1">
-                  Nomor HP / WhatsApp
+                  Nomor Induk Kependudukan (NIK)
+                </label>
+                <input
+                  type="text"
+                  value={profile?.nik || ''}
+                  disabled
+                  className="w-full border border-neutral-200 bg-neutral-100 px-3 py-2 text-xs font-mono text-neutral-600 cursor-not-allowed"
+                />
+                <span className="text-[10px] text-neutral-500 mt-0.5 block">Nomor KTP resmi terdaftar &amp; terverifikasi Dukcapil</span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold uppercase text-neutral-700 mb-1">
+                  Nomor HP / WhatsApp Aktif
                 </label>
                 <input
                   type="text"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  placeholder="081234567890"
+                  placeholder="Contoh: 081234567890"
                   className="w-full border border-neutral-300 px-3 py-2 text-xs focus:outline-none focus:border-neutral-900"
                 />
+                <span className="text-[10px] text-neutral-500 mt-0.5 block">Nomor komunikasi resmi untuk panggilan wawancara &amp; kontak HRD</span>
               </div>
 
               <div>
                 <label className="block text-xs font-semibold uppercase text-neutral-700 mb-1">
-                  Ringkasan Pengalaman (Bio)
+                  Tempat Lahir
+                </label>
+                <input
+                  type="text"
+                  value={birthPlace}
+                  onChange={(e) => setBirthPlace(e.target.value)}
+                  placeholder="Contoh: Timika, Jayapura, Makassar, dll."
+                  className="w-full border border-neutral-300 px-3 py-2 text-xs focus:outline-none focus:border-neutral-900"
+                />
+                <span className="text-[10px] text-neutral-500 mt-0.5 block">Kota / Kabupaten tempat lahir sesuai KTP</span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold uppercase text-neutral-700 mb-1">
+                  Tanggal Lahir
+                </label>
+                <input
+                  type="date"
+                  value={birthDate}
+                  onChange={(e) => setBirthDate(e.target.value)}
+                  className="w-full border border-neutral-300 px-3 py-2 text-xs focus:outline-none focus:border-neutral-900"
+                />
+                <span className="text-[10px] text-neutral-500 mt-0.5 block">Format tanggal lahir resmi (YYYY-MM-DD)</span>
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-semibold uppercase text-neutral-700 mb-1">
+                  Domisili / Distrik Tempat Tinggal (Kabupaten Mimika)
+                </label>
+                <input
+                  type="text"
+                  list="talent-domicile-districts"
+                  value={domicile}
+                  onChange={(e) => setDomicile(e.target.value)}
+                  placeholder="Pilih atau ketik distrik domisili (contoh: Mimika Baru, Kuala Kencana, Wania, Tembagapura, dll.)"
+                  className="w-full border border-neutral-300 px-3 py-2 text-xs focus:outline-none focus:border-neutral-900"
+                />
+                <datalist id="talent-domicile-districts">
+                  <option value="Mimika Baru" />
+                  <option value="Kuala Kencana" />
+                  <option value="Wania" />
+                  <option value="Tembagapura" />
+                  <option value="Kwamki Narama" />
+                  <option value="Iwaka" />
+                  <option value="Mimika Timur" />
+                  <option value="Mimika Timur Jauh" />
+                  <option value="Mimika Barat" />
+                  <option value="Mimika Barat Jauh" />
+                  <option value="Mimika Barat Tengah" />
+                  <option value="Mimika Tengah" />
+                  <option value="Agimuga" />
+                  <option value="Jila" />
+                  <option value="Jita" />
+                  <option value="Alama" />
+                  <option value="Hoya" />
+                  <option value="Amar" />
+                </datalist>
+                <span className="text-[10px] text-neutral-500 mt-0.5 block">Distrik domisili saat ini di Kabupaten Mimika untuk prioritas pemetaan tenaga kerja lokal</span>
+              </div>
+
+              {/* PILIHAN KATEGORI TENAGA KERJA: LOKAL ATAU NON-LOKAL */}
+              <div className="sm:col-span-2">
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-semibold uppercase text-neutral-700">
+                    Status Asal Tenaga Kerja (Lokal / Non-Lokal)
+                  </label>
+                  <span className="text-[10px] text-neutral-500 font-mono">
+                    Perda No. 7 Thn 2024
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* OPSI 1: TALENTA LOKAL */}
+                  <button
+                    type="button"
+                    onClick={() => setIsLocal(true)}
+                    className={`flex items-start gap-3 p-3.5 border text-left transition-all cursor-pointer ${
+                      isLocal
+                        ? 'border-neutral-900 bg-neutral-50 ring-1 ring-neutral-900 shadow-xs'
+                        : 'border-neutral-200 bg-white hover:border-neutral-400 text-neutral-600'
+                    }`}
+                  >
+                    <div
+                      className={`w-4 h-4 mt-0.5 rounded-none border flex items-center justify-center shrink-0 transition-colors ${
+                        isLocal
+                          ? 'bg-neutral-900 border-neutral-900 text-white'
+                          : 'border-neutral-400 bg-white'
+                      }`}
+                    >
+                      {isLocal && <Check className="w-3 h-3 stroke-[3]" />}
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-xs font-bold uppercase text-neutral-900">
+                          Tenaga Kerja Lokal
+                        </span>
+                        <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 bg-emerald-100 text-emerald-800 border border-emerald-300">
+                          Prioritas Afirmasi
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-neutral-600 mt-1 leading-snug">
+                        Masyarakat asli / penduduk lokal ber-KTP Kabupaten Mimika atau Papua.
+                      </p>
+                    </div>
+                  </button>
+
+                  {/* OPSI 2: TALENTA NON-LOKAL */}
+                  <button
+                    type="button"
+                    onClick={() => setIsLocal(false)}
+                    className={`flex items-start gap-3 p-3.5 border text-left transition-all cursor-pointer ${
+                      !isLocal
+                        ? 'border-neutral-900 bg-neutral-50 ring-1 ring-neutral-900 shadow-xs'
+                        : 'border-neutral-200 bg-white hover:border-neutral-400 text-neutral-600'
+                    }`}
+                  >
+                    <div
+                      className={`w-4 h-4 mt-0.5 rounded-none border flex items-center justify-center shrink-0 transition-colors ${
+                        !isLocal
+                          ? 'bg-neutral-900 border-neutral-900 text-white'
+                          : 'border-neutral-400 bg-white'
+                      }`}
+                    >
+                      {!isLocal && <Check className="w-3 h-3 stroke-[3]" />}
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-xs font-bold uppercase text-neutral-900">
+                          Tenaga Kerja Non-Lokal
+                        </span>
+                        <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 bg-neutral-200 text-neutral-700 border border-neutral-300">
+                          Umum
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-neutral-600 mt-1 leading-snug">
+                        Angkatan kerja pendatang dari luar wilayah Kabupaten Mimika.
+                      </p>
+                    </div>
+                  </button>
+                </div>
+                <span className="text-[10px] text-neutral-500 mt-1.5 block">
+                  Pilihan centang ini digunakan oleh mesin radar AI Disnakertrans untuk penentuan afirmasi kuota penempatan tenaga kerja lokal Mimika.
+                </span>
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-semibold uppercase text-neutral-700 mb-1">
+                  Ringkasan Pengalaman (Bio Profil)
                 </label>
                 <input
                   type="text"
                   value={bio}
                   onChange={(e) => setBio(e.target.value)}
-                  placeholder="Contoh: Operator excavator bersertifikasi dengan pengalaman proyek tambang."
+                  placeholder="Contoh: Operator excavator bersertifikasi dengan pengalaman proyek tambang site Timika."
                   className="w-full border border-neutral-300 px-3 py-2 text-xs focus:outline-none focus:border-neutral-900"
                 />
+                <span className="text-[10px] text-neutral-500 mt-0.5 block">Ringkasan profil 1 kalimat yang akan dibaca pertama kali oleh HRD perusahaan</span>
               </div>
             </div>
+            </div>
           </div>
+        )}
 
-          {/* Bagian 2: Riwayat Pendidikan */}
-          <div className="p-6 space-y-4">
+        {/* TAHAP 2: RIWAYAT PENDIDIKAN FORMAL */}
+        {currentStep === 2 && (
+          <div className="step-transition">
+            {/* Bagian 2: Riwayat Pendidikan */}
+            <div className="p-6 space-y-4">
             <div className="flex justify-between items-center">
               <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-900 flex items-center gap-2">
                 <GraduationCap className="w-4 h-4 text-neutral-700" />
@@ -882,15 +1278,25 @@ export default function TalentProfilePage() {
                       value={edu.degree}
                       onChange={(e) => {
                         const next = [...education];
-                        next[idx].degree = e.target.value;
+                        const newDeg = e.target.value;
+                        next[idx].degree = newDeg;
+                        if ((newDeg === 'SD' || newDeg === 'SMP') && !next[idx].major) {
+                          next[idx].major = 'Pendidikan Dasar / Umum';
+                        }
                         setEducation(next);
                       }}
-                      className="w-24 border border-neutral-300 px-2 py-2 text-xs focus:outline-none focus:border-neutral-900"
+                      className="w-32 border border-neutral-300 px-2 py-2 text-xs focus:outline-none focus:border-neutral-900 bg-white"
                     >
-                      <option value="SMA">SMA</option>
-                      <option value="SMK">SMK</option>
-                      <option value="D3">D3</option>
-                      <option value="S1">S1</option>
+                      <option value="SD">SD Sederajat</option>
+                      <option value="SMP">SMP Sederajat</option>
+                      <option value="SMA">SMA Sederajat</option>
+                      <option value="SMK">SMK Vokasi</option>
+                      <option value="D1">Diploma (D1)</option>
+                      <option value="D2">Diploma (D2)</option>
+                      <option value="D3">Diploma (D3)</option>
+                      <option value="D4">Sarjana Terapan (D4)</option>
+                      <option value="S1">Sarjana (S1)</option>
+                      <option value="S2">Magister (S2)</option>
                     </select>
                     <MajorCombobox
                       value={edu.major}
@@ -903,7 +1309,7 @@ export default function TalentProfilePage() {
                         next[idx].aiConfidence = val.aiConfidence;
                         setEducation(next);
                       }}
-                      placeholder="Pilih atau ketik jurusan..."
+                      placeholder={edu.degree === 'SD' || edu.degree === 'SMP' ? 'Pendidikan Dasar / Umum' : 'Pilih atau ketik jurusan...'}
                     />
                     <button
                       type="button"
@@ -917,7 +1323,12 @@ export default function TalentProfilePage() {
               </div>
             )}
           </div>
+        </div>
+      )}
 
+      {/* TAHAP 3: REKAM JEJAK PENGALAMAN & KEAHLIAN */}
+      {currentStep === 3 && (
+        <div className="step-transition divide-y divide-neutral-200">
           {/* Bagian 3: Pengalaman Kerja Lapangan */}
           <div className="p-6 space-y-4">
             <div className="flex justify-between items-center">
@@ -1193,7 +1604,12 @@ export default function TalentProfilePage() {
               </div>
             )}
           </div>
+        </div>
+      )}
 
+      {/* TAHAP 4: DOKUMEN SERTIFIKASI & ORGANISASI */}
+      {currentStep === 4 && (
+        <div className="step-transition divide-y divide-neutral-200">
           {/* Bagian 5: Dokumen Sertifikasi & Lisensi Keahlian (Unggah PDF) */}
           <div className="p-6 space-y-4">
             <div className="flex justify-between items-center">
@@ -1429,7 +1845,7 @@ export default function TalentProfilePage() {
                   className="w-full border border-neutral-300 px-3 py-2 text-xs focus:outline-none focus:border-neutral-900 font-medium"
                 />
                 <span className="text-[10px] text-neutral-500 mt-1 block">
-                  Kosongkan jika belum ada. Tuliskan nama paguyuban warga, organisasi pemuda, atau komunitas tempat Anda aktif berkegiatan.
+                  Kosongkan jika belum ada. Tuliskan nama paguyuban, organisasi pemuda, atau komunitas tempat Anda aktif berkegiatan.
                 </span>
               </div>
 
@@ -1450,13 +1866,150 @@ export default function TalentProfilePage() {
               </div>
             </div>
           </div>
+        </div>
+      )}
 
-          {/* Bagian 7: Kesiapan Pola Kerja & Wilayah Tugas */}
+      {/* TAHAP 5: TARGET KARIR & KESIAPAN KERJA */}
+      {currentStep === 5 && (
+        <div className="step-transition divide-y divide-neutral-200">
+          {/* Bagian 7: Preferensi / Posisi Pekerjaan yang Diminati */}
+          <div className="p-6 space-y-5">
+            <div>
+              <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-900 flex items-center gap-2">
+                <Target className="w-4 h-4 text-neutral-700" />
+                7. Minat &amp; Posisi Pekerjaan yang Dicari (Target Profesi)
+              </h2>
+              <p className="text-[11px] text-neutral-500 mt-0.5">
+                Tentukan bidang tugas atau jabatan yang Anda incar. <strong>Sangat krusial untuk lulusan SMA Umum, SMP, dan SD yang belum memiliki jurusan vokasi teknis</strong> agar kecerdasan buatan (AI) Disnakertrans dapat memprioritaskan profil Anda pada lowongan yang selaras.
+              </p>
+            </div>
+
+            {/* Kotak Edukasi AI Khusus Non-Vokasi */}
+            <div className="p-3 bg-neutral-100 border border-neutral-300 text-neutral-800 text-xs flex items-start gap-2.5">
+              <Sparkles className="w-4 h-4 text-neutral-800 shrink-0 mt-0.5" />
+              <p className="text-[11px] leading-relaxed">
+                <strong>Panduan Penempatan Kerja Daerah:</strong> Jika Anda lulusan SMA tanpa kejuruan teknis atau lulusan SMP/SD, memilih target peran di bawah ini (seperti <em>Helper Tambang, Operator Gudang, Security, Driver, Administrasi</em>) akan membantu AI merekomendasikan profil Anda secara langsung kepada HRD perusahaan yang membuka posisi tersebut.
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              {/* 1. Status Terpilih (Active Chips Summary) */}
+              <div className="p-3.5 bg-neutral-50 border border-neutral-200 space-y-2">
+                <div className="flex items-center justify-between border-b border-neutral-200 pb-1.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-700 flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-neutral-900" />
+                    Posisi Impian yang Anda Targetkan ({desiredJobRoles.length})
+                  </span>
+                  {desiredJobRoles.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setDesiredJobRoles([])}
+                      className="text-[10px] text-neutral-400 hover:text-red-700 uppercase font-semibold transition-colors cursor-pointer"
+                    >
+                      Reset Pilihan
+                    </button>
+                  )}
+                </div>
+
+                {desiredJobRoles.length === 0 ? (
+                  <p className="text-xs text-neutral-500 italic py-1">
+                    Belum ada posisi yang dipilih. Silakan klik pilihan profesi cepat di bawah atau ketik profesi impian Anda.
+                  </p>
+                ) : (
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {desiredJobRoles.map((role) => (
+                      <span
+                        key={role}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-neutral-900 text-white text-xs font-semibold border border-neutral-900 shadow-2xs"
+                      >
+                        <Check className="w-3 h-3 text-emerald-400" />
+                        <span>{role}</span>
+                        <button
+                          type="button"
+                          onClick={() => removeDesiredRole(role)}
+                          className="text-neutral-400 hover:text-white ml-0.5 p-0.5 cursor-pointer"
+                          title="Hapus posisi ini"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* 2. Opsi Cepat Siap Pakai (Preset Interactive Buttons) */}
+              <div className="space-y-2">
+                <label className="block text-[10px] font-bold uppercase text-neutral-600 tracking-wider">
+                  Pilihan Cepat Profesi / Posisi Populer di Kabupaten Mimika:
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {PRESET_DESIRED_JOB_ROLES.map((role) => {
+                    const isSelected = desiredJobRoles.includes(role);
+                    return (
+                      <button
+                        key={role}
+                        type="button"
+                        onClick={() => toggleDesiredRole(role)}
+                        className={`px-3 py-1.5 text-xs font-semibold uppercase tracking-tight flex items-center gap-1.5 transition-all cursor-pointer border ${
+                          isSelected
+                            ? 'bg-neutral-900 text-white border-neutral-900 shadow-xs ring-1 ring-neutral-900'
+                            : 'bg-white text-neutral-700 border-neutral-300 hover:border-neutral-900 hover:bg-neutral-50'
+                        }`}
+                      >
+                        {isSelected ? (
+                          <Check className="w-3.5 h-3.5 text-emerald-400 stroke-[2.5]" />
+                        ) : (
+                          <Plus className="w-3.5 h-3.5 text-neutral-400" />
+                        )}
+                        <span>{role}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 3. Input Mandiri / Custom Role */}
+              <div className="pt-2 border-t border-neutral-200">
+                <label className="block text-[10px] font-bold uppercase text-neutral-600 mb-1.5 tracking-wider">
+                  Ingin Melamar Posisi Lainnya? Ketik di Sini:
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={customRoleInput}
+                    onChange={(e) => setCustomRoleInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        addCustomDesiredRole();
+                      }
+                    }}
+                    placeholder="cth: Helper Welder, Kru Kapal Pelabuhan, Juru Masak, Barista, Staff Gudang Farmasi"
+                    className="flex-1 border border-neutral-300 px-3 py-2 text-xs focus:outline-none focus:border-neutral-900 font-medium bg-white"
+                  />
+                  <button
+                    type="button"
+                    onClick={addCustomDesiredRole}
+                    disabled={!customRoleInput.trim()}
+                    className="px-4 py-2 bg-neutral-900 hover:bg-neutral-800 disabled:opacity-40 text-white text-xs font-bold uppercase tracking-wider transition-colors shrink-0 cursor-pointer"
+                  >
+                    + Tambah
+                  </button>
+                </div>
+                <span className="text-[10px] text-neutral-500 mt-1 block">
+                  Tekan Enter atau klik &quot;+ Tambah&quot; untuk menambahkan posisi ke daftar target Anda.
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Bagian 8: Kesiapan Pola Kerja & Wilayah Tugas */}
           <div className="p-6 space-y-5">
             <div>
               <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-900 flex items-center gap-2">
                 <Compass className="w-4 h-4 text-neutral-700" />
-                7. Kesiapan Pola Kerja & Wilayah Tugas
+                8. Kesiapan Pola Kerja & Wilayah Tugas
               </h2>
               <p className="text-[11px] text-neutral-500 mt-0.5">
                 Tentukan kondisi kerja dan area di Mimika yang siap Anda jalani agar tawaran lowongan yang masuk sesuai kemampuan fisik dan waktu Anda.
@@ -1607,23 +2160,61 @@ export default function TalentProfilePage() {
                 </div>
               </div>
             </div>
+            </div>
+          </div>
+        )}
+
+        {/* Action Bar Navigasi Tahapan (Bawah Formulir) */}
+        <div className="p-4 sm:p-6 bg-neutral-50 border-t border-neutral-300 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="w-full sm:w-auto flex items-center gap-2">
+            {currentStep > 1 ? (
+              <button
+                type="button"
+                onClick={() => goToStep(currentStep - 1)}
+                className="w-full sm:w-auto px-4 py-2.5 border border-neutral-300 bg-white hover:bg-neutral-100 text-neutral-800 text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors cursor-pointer"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Kembali: {STEPS[currentStep - 2].shortTitle}</span>
+              </button>
+            ) : (
+              <span className="text-xs text-neutral-500 italic hidden sm:inline">
+                Tahap 01: Identitas &amp; Kontak Dasar
+              </span>
+            )}
           </div>
 
-          {/* Tombol Simpan Terpadu */}
-          <div className="p-6 bg-neutral-50 flex items-center justify-between">
-            <span className="text-xs text-neutral-600">
-              Proses selesai setelah Anda menekan tombol simpan dan mengonfirmasi pakta integritas.
-            </span>
-            <button
-              type="submit"
-              disabled={saving}
-              className="bg-neutral-900 hover:bg-neutral-800 text-white px-6 py-2.5 text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-colors disabled:opacity-50 cursor-pointer"
-            >
-              <Save className="w-4 h-4" />
-              <span>{saving ? 'Menyimpan...' : 'Simpan & Tinjau Profil'}</span>
-            </button>
+          <div className="w-full sm:w-auto flex flex-col sm:flex-row items-center gap-3">
+            {currentStep < STEPS.length ? (
+              <>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="text-xs font-semibold uppercase text-neutral-600 hover:text-neutral-900 underline cursor-pointer"
+                >
+                  Simpan Sekarang
+                </button>
+                <button
+                  type="button"
+                  onClick={() => goToStep(currentStep + 1)}
+                  className="w-full sm:w-auto px-5 py-2.5 bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                >
+                  <span>Lanjut ke {STEPS[currentStep].shortTitle}</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </>
+            ) : (
+              <button
+                type="submit"
+                disabled={saving}
+                className="w-full sm:w-auto px-6 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                <Save className="w-4 h-4 text-emerald-200" />
+                <span>{saving ? 'Menyimpan...' : 'Simpan & Tinjau Profil'}</span>
+              </button>
+            )}
           </div>
-        </form>
+        </div>
+      </form>
       </div>
 
       {/* Pre-Flight Review Modal */}
@@ -1636,6 +2227,10 @@ export default function TalentProfilePage() {
           fullName: profile?.fullName || '',
           nik: profile?.nik || '',
           phone,
+          birthPlace,
+          birthDate,
+          domicile,
+          isLocal,
           bio,
           avatarUrl: avatarUrl || undefined,
           education,
@@ -1645,6 +2240,7 @@ export default function TalentProfilePage() {
           organizations,
           portfolioUrl,
           workPreferences: selectedPreferences.join(', '),
+          desiredJobRoles,
           preferredLocation,
         }}
       />

@@ -45,6 +45,7 @@ export async function apiFetch<T = any>(
 export function getFullMediaUrl(url?: string | null): string {
   if (!url) return '';
   if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  if (url.startsWith('/images/')) return url;
 
   const backendOrigin = BASE_URL.replace(/\/api\/v1\/?$/, '');
   const clean = url.startsWith('/') ? url : `/${url}`;
